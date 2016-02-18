@@ -34,7 +34,7 @@ BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
 }
 // Add your function definitions here
 template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::Node BWTree<KeyType, ValueType, KeyComparator>::Node::lookup(KeyType k) { }
+typename BWTree<KeyType, ValueType, KeyComparator>::Node BWTree<KeyType, ValueType, KeyComparator>::Node::lookup(KeyType k) { }
 
 }  // End index namespace
 }  // End peloton namespace
