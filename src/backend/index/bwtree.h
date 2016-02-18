@@ -28,6 +28,8 @@ namespace peloton {
 
     public:
       typedef oid_t PID;
+      const static PID INVALID_PID = std::numeric_limits<PID>::max();
+      const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
 
@@ -84,13 +86,14 @@ namespace peloton {
 
         void SetPID(PID pid);
         virtual ~Node(){}
-        virtual Node lookup(KeyType k) = 0;
+        virtual Node *lookup(KeyType k) = 0;
       };
 
 
       /** @brief Class for BWTree inner node */
       class InnerNode : protected Node {
       public:
+        InnerNode(const NodeTable &node_table);
 
       private:
         PID right_pid;
@@ -100,7 +103,7 @@ namespace peloton {
       /** @brief Class for BWTree leaf node  */
       class LeafNode : protected Node {
       public:
-
+        LeafNode(const NodeTable &node_table);
       private:
         std::vector<std::pair<KeyType, ValueType> > items;
         PID prev;
@@ -110,7 +113,7 @@ namespace peloton {
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : protected Node {
       public:
-
+        InsertDelta(const NodeTable &node_table);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
@@ -119,7 +122,7 @@ namespace peloton {
       /** @brief Class for Delete Delta node */
       class DeleteDelta : protected Node {
       public:
-
+        DeleteDelta(const NodeTable &node_table);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
