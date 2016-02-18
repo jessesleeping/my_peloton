@@ -45,10 +45,11 @@ namespace peloton {
       class NodeTable {
       private:
         std::vector<std::atomic<Node *>> table;
-        std::atomic<PID> next_pid{0};
+        std::atomic<PID> next_pid;
       public:
         NodeTable(size_t capacity);
-        ~NodeTable();
+        NodeTable() = delete;
+        // ~NodeTable();
 
         /**
          * @brief Compare and swap an old node with new node at PID.
@@ -104,8 +105,10 @@ namespace peloton {
 
       /** @brief Class for BWTree leaf node  */
       class LeafNode : protected Node {
+        friend class BWTree;
       public:
         LeafNode(const NodeTable &node_table);
+        Node *lookup(KeyType k);
       private:
         std::vector<std::pair<KeyType, ValueType> > items;
         PID prev;
@@ -133,8 +136,8 @@ namespace peloton {
 
 
       /** DATA FIELD **/
-      NodeTable node_table;
       KeyComparator key_comp;
+      NodeTable node_table;
     };
 
   }  // End index namespace
