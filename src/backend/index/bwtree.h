@@ -25,6 +25,8 @@ namespace peloton {
     template <typename KeyType, typename ValueType, class KeyComparator>
     class BWTree {
 // TODO: disable default/copy constructor
+// TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
+// similar like stx_btree (return a iterator to the sorted buffer);
 
     public:
       typedef oid_t PID;
