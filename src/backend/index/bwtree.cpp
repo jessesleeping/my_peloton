@@ -16,7 +16,6 @@ namespace peloton {
 namespace index {
 
 template <typename KeyType, typename ValueType, class KeyComparator>
-
 BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
   key_comp(kcp),
   node_table() {
@@ -73,8 +72,12 @@ BWTree<KeyType, ValueType, KeyComparator>::InsertDelta::InsertDelta(const NodeTa
 
 // Add your function definitions here
 template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::Node
-*BWTree<KeyType, ValueType, KeyComparator>::Node::lookup(KeyType k) { }
+typename BWTree<KeyType, ValueType, KeyComparator>::Node*
+BWTree<KeyType, ValueType, KeyComparator>::Node::lookup(KeyType k) { }
 
+// Add your function definitions here
+template <typename KeyType, typename ValueType, class KeyComparator>
+typename BWTree<KeyType, ValueType, KeyComparator>::Node*
+BWTree<KeyType, ValueType, KeyComparator>::InnerNode::lookup(KeyType k) { }
 }  // End index namespace
 }  // End peloton namespace

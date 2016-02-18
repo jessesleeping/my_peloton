@@ -35,6 +35,7 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp);
+      BWTree() = delete;
 
 
     private:
@@ -74,7 +75,7 @@ namespace peloton {
 
       /** @brief Class for BWTree node, only provides common interface */
       class Node {
-        // friend class BWTree; // 我们为什么要这个
+       friend class BWTree; // 我们为什么要这个
 
       private:
         const NodeTable& node_table;
@@ -92,9 +93,10 @@ namespace peloton {
 
       /** @brief Class for BWTree inner node */
       class InnerNode : protected Node {
+        friend class BWTree;
       public:
         InnerNode(const NodeTable &node_table);
-
+        Node *lookup(KeyType k);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
