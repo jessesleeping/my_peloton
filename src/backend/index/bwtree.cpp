@@ -33,6 +33,8 @@ BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
   root->children.emplace_back(std::make_pair(std::numeric_limits<KeyType>::max(), pid));
 }
 // Add your function definitions here
+template <typename KeyType, typename ValueType, class KeyComparator>
+BWTree<KeyType, ValueType, KeyComparator>::Node BWTree<KeyType, ValueType, KeyComparator>::Node::lookup(KeyType k) { }
 
 }  // End index namespace
 }  // End peloton namespace
