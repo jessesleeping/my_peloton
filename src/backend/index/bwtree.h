@@ -28,9 +28,11 @@ namespace peloton {
 
     public:
       typedef oid_t PID;
-
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
+
+    public:
+      BWTree(KeyComparator kcp);
 
 
     private:
@@ -91,7 +93,8 @@ namespace peloton {
       public:
 
       private:
-        std::vector<KeyType, PID> children;
+        PID right_pid;
+        std::vector<std::pair<KeyType, PID> > children;
       };
 
       /** @brief Class for BWTree leaf node  */
@@ -99,7 +102,7 @@ namespace peloton {
       public:
 
       private:
-        std::vector<KeyType, ValueType> items;
+        std::vector<std::pair<KeyType, ValueType> > items;
         PID prev;
         PID next;
       };
@@ -122,6 +125,11 @@ namespace peloton {
         std::pair<KeyType, ValueType> info;
       };
 
+
+
+      /** DATA FIELD **/
+      NodeTable node_table;
+      KeyComparator key_comp;
     };
 
   }  // End index namespace
