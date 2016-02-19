@@ -96,9 +96,9 @@ namespace peloton {
         virtual ~Node(){}
         // virtual Node *lookup(const KeyType& k) = 0;
         virtual void Scan(
-            const KeyType& key,
-            bool equality, ScanResult &map,
-            Node *&node) = 0;
+            const KeyType& lowerBound,
+            bool equality, ScanResult &scanRes,
+            Node *&nodeRes) = 0;
       };
 
       /** @brief Class for BWTree inner node */
@@ -106,7 +106,7 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
-        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
+        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -118,7 +118,7 @@ namespace peloton {
       public:
         LeafNode(const BWTree &bwTree_) : Node(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
         // Node *Lookup(const KeyType& k);
-        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
+        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
       private:
 
         PID prev;
@@ -130,7 +130,7 @@ namespace peloton {
       class InsertDelta : protected Node {
       public:
         InsertDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
-        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
+        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
@@ -140,7 +140,7 @@ namespace peloton {
       class DeleteDelta : protected Node {
       public:
         DeleteDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
-        void Scan(const KeyType& key, bool equality, std::multimap<KeyType, ValueType, KeyComparator> &map, Node *&node);
+        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
