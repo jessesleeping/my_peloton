@@ -13,6 +13,7 @@
 #pragma once
 #include <vector>
 #include <atomic>
+#include <map>
 #include "backend/common/types.h"
 // #include "backend/common/platform.h"
 
@@ -95,13 +96,13 @@ namespace peloton {
         virtual Node *lookup(const KeyType& k) = 0;
       };
 
-
       /** @brief Class for BWTree inner node */
       class InnerNode : protected Node {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
         Node *lookup(const KeyType& k);
+        void scan(const KeyType& key, bool equality, std::multimap<KeyType, ValueType, KeyComparator> &map, Node *&node);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -139,7 +140,7 @@ namespace peloton {
       };
 
 
-
+    private:
       /** DATA FIELD **/
       KeyComparator key_comp;
       NodeTable node_table;

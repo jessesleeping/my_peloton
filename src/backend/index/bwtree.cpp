@@ -107,8 +107,13 @@ BWTree<KeyType, ValueType, KeyComparator>::InnerNode::lookup(__attribute__((unus
   return nullptr;
 }
 
-
-
+template <typename KeyType, typename ValueType, class KeyComparator>
+void BWTree<KeyType, ValueType, KeyComparator>::InnerNode::scan(
+    __attribute__((unused)) const KeyType& key,
+    __attribute__((unused)) bool equality,
+    __attribute__((unused)) std::multimap<KeyType, ValueType, KeyComparator> &map,
+    __attribute__((unused)) Node *&node)
+{}
 
 // Explicit template instantiation
 template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>>;
