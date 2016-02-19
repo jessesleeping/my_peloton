@@ -47,7 +47,7 @@ namespace peloton {
       class NodeTable {
       private:
         std::vector<std::atomic<Node *>> table;
-        std::atomic<PID> next_pid;
+        std::atomic<PID> next_pid{0};
       public:
         NodeTable(size_t capacity);
         NodeTable() = delete;
@@ -88,7 +88,9 @@ namespace peloton {
         Node() = delete;
         Node(const NodeTable& node_table);
 
-        void SetPID(PID pid);
+        void SetPID(PID pid) {
+          this->pid = pid;
+        }
         virtual ~Node(){}
         virtual Node *lookup(KeyType k) = 0;
       };
