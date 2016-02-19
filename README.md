@@ -2,6 +2,10 @@
 
 [![Build Status](http://jenkins.db.cs.cmu.edu:8080/job/Peloton/badge/icon?style=flat)](http://jenkins.db.cs.cmu.edu:8080/job/Peloton/)
 
+## Unsolved Problems:
+* bwtree iterator, erase
+* deleteDelta needs value comparator
+
 ## What Is Peloton?
 
 Peloton is an in-memory DBMS designed for real-time analytics. It can handle both fast ACID transactions and complex analytical queries on the same database. 
