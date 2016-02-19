@@ -47,7 +47,7 @@ namespace peloton {
       class NodeTable {
       private:
         std::vector<std::atomic<Node *>> table;
-        std::atomic<PID> next_pid;
+        std::atomic<PID> next_pid{0};
       public:
         NodeTable(size_t capacity);
         NodeTable() = delete;
