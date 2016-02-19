@@ -38,7 +38,7 @@ namespace peloton {
     public:
       BWTree(KeyComparator kcp);
       BWTree() = delete;
-
+      bool IsKeyEqual(const KeyType &k1, const KeyType &k2) const { return !key_comp(k1, k2) && !key_comp(k2, k1); }
 
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
@@ -80,17 +80,19 @@ namespace peloton {
       class Node {
        friend class BWTree; // 我们为什么要这个
 
+      protected:
+        const BWTree& bwTree;
       private:
-        const NodeTable& node_table;
+        //const NodeTable& node_table;
         PID pid;
 
       public:
         Node() = delete;
-        Node(const NodeTable& node_table);
+        Node(const BWTree &bwTree_)  : bwTree(bwTree_), pid(INVALID_PID) {};
 
-        void SetPID(PID pid);
+        void SetPID(PID pid) {this->pid = pid;};
         virtual ~Node(){}
-        virtual Node *lookup(KeyType k) = 0;
+        virtual Node *lookup(const KeyType& k) = 0;
       };
 
 
@@ -98,8 +100,8 @@ namespace peloton {
       class InnerNode : protected Node {
         friend class BWTree;
       public:
-        InnerNode(const NodeTable &node_table);
-        Node *lookup(KeyType k);
+        InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
+        Node *lookup(const KeyType& k);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -109,18 +111,19 @@ namespace peloton {
       class LeafNode : protected Node {
         friend class BWTree;
       public:
-        LeafNode(const NodeTable &node_table);
-        Node *lookup(KeyType k);
+        LeafNode(const BWTree &bwTree_) : Node(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
+        Node *lookup(const KeyType& k);
       private:
-        std::vector<std::pair<KeyType, ValueType> > items;
+
         PID prev;
         PID next;
+        std::vector<std::pair<KeyType, ValueType> > items;
       };
 
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : protected Node {
       public:
-        InsertDelta(const NodeTable &node_table);
+        InsertDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
@@ -129,7 +132,7 @@ namespace peloton {
       /** @brief Class for Delete Delta node */
       class DeleteDelta : protected Node {
       public:
-        DeleteDelta(const NodeTable &node_table);
+        DeleteDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;

@@ -22,12 +22,12 @@ BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
   node_table(NODE_TABLE_DFT_CAPACITY) {
 
   // Create a root node
-  InnerNode*root = new InnerNode(node_table);
+  InnerNode*root = new InnerNode(*this);
   PID pid = node_table.InsertNode(static_cast<Node *>(root));
   assert(pid == 0);
 
   // Create a leaf node
-  LeafNode *leaf = new LeafNode(node_table);
+  LeafNode *leaf = new LeafNode(*this);
   pid = node_table.InsertNode(static_cast<Node *>(leaf));
   // Insert the leaf node as the children of the root
   root->children.emplace_back(std::make_pair(std::numeric_limits<KeyType>::max(), pid));
@@ -51,38 +51,36 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::InsertNode(__attribute__((
   return INVALID_PID;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::Node::Node(const NodeTable &node_table_) :
-  node_table(node_table_),
-  pid(INVALID_PID) {}
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::InnerNode::InnerNode(const NodeTable &node_table_) :
-  Node(node_table_) {}
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::LeafNode::LeafNode(const NodeTable &node_table_) :
-  Node(node_table_), prev(INVALID_PID), next(INVALID_PID) {}
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::DeleteDelta::DeleteDelta(const NodeTable &node_table_) :
-  Node(node_table_) {}
-
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::InsertDelta::InsertDelta(const NodeTable &node_table_) :
-  Node(node_table_) {}
-
 // Add your function definitions here
 template <typename KeyType, typename ValueType, class KeyComparator>
 typename BWTree<KeyType, ValueType, KeyComparator>::Node*
-BWTree<KeyType, ValueType, KeyComparator>::LeafNode::lookup(__attribute__((unused))  KeyType k) {
+BWTree<KeyType, ValueType, KeyComparator>::LeafNode::lookup(const  KeyType& k) {
+    if(items.empty()) {
+      return nullptr;
+    }
+
+    size_t b = 0, e = items.size() - 1;
+    while(b < e){
+      size_t m = b + (e - b) / 2;
+      const auto& key = items[m].first;
+      if(Node::bwTree.IsKeyEqual(k, key)){
+        // find
+        return static_cast<Node *>(this);
+      }else if(Node::bwTree.key_comp(key, k)){
+        // key < target ?
+        b = ++m;
+      }else{
+        // key > target
+        e = --m;
+      }
+    }
     return nullptr;
   }
 
 // Add your function definitions here
 template <typename KeyType, typename ValueType, class KeyComparator>
 typename BWTree<KeyType, ValueType, KeyComparator>::Node*
-BWTree<KeyType, ValueType, KeyComparator>::InnerNode::lookup(__attribute__((unused))  KeyType k) {
+BWTree<KeyType, ValueType, KeyComparator>::InnerNode::lookup(__attribute__((unused))  const KeyType& k) {
     return nullptr;
   }
 
