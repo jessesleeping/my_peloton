@@ -2,6 +2,15 @@
 
 [![Build Status](http://jenkins.db.cs.cmu.edu:8080/job/Peloton/badge/icon?style=flat)](http://jenkins.db.cs.cmu.edu:8080/job/Peloton/)
 
+## TODO List
+* CKP 1 (due in 02/21/2016)
+	* **implement iterator:** jiexi
+	* **scan:** rxian + runshenz
+	* **bwtree insert, delete interface:** ??
+	* **bwtree index wrapper:** ?? 
+	* **test:** ??
+* **node_table, fixed size --> dynamic resize. (list + vector)** ??
+
 ## Unsolved Problems:
 * bwtree iterator, erase
 * deleteDelta needs value comparator
