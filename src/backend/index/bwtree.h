@@ -31,6 +31,7 @@ namespace peloton {
 
     public:
       typedef oid_t PID;
+      typedef std::multimap<KeyType, ValueType, KeyComparator> ScanResult;
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       // reference: https://gist.github.com/jeetsukumaran/307264
@@ -79,7 +80,7 @@ namespace peloton {
 
       /** @brief Class for BWTree node, only provides common interface */
       class Node {
-       friend class BWTree; // 我们为什么要这个
+        friend class BWTree; // 我们为什么要这个
 
       protected:
         const BWTree& bwTree;
@@ -94,6 +95,10 @@ namespace peloton {
         void SetPID(PID pid) {this->pid = pid;};
         virtual ~Node(){}
         virtual Node *lookup(const KeyType& k) = 0;
+        virtual void Scan(
+            const KeyType& key,
+            bool equality, ScanResult &map,
+            Node *&node) = 0;
       };
 
       /** @brief Class for BWTree inner node */
@@ -101,8 +106,7 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
-        Node *lookup(const KeyType& k);
-        void scan(const KeyType& key, bool equality, std::multimap<KeyType, ValueType, KeyComparator> &map, Node *&node);
+        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -113,7 +117,8 @@ namespace peloton {
         friend class BWTree;
       public:
         LeafNode(const BWTree &bwTree_) : Node(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
-        Node *lookup(const KeyType& k);
+        Node *Lookup(const KeyType& k);
+        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
       private:
 
         PID prev;
@@ -125,6 +130,7 @@ namespace peloton {
       class InsertDelta : protected Node {
       public:
         InsertDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
+        void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
@@ -134,6 +140,7 @@ namespace peloton {
       class DeleteDelta : protected Node {
       public:
         DeleteDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
+        void Scan(const KeyType& key, bool equality, std::multimap<KeyType, ValueType, KeyComparator> &map, Node *&node);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
