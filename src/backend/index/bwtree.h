@@ -94,7 +94,7 @@ namespace peloton {
 
         void SetPID(PID pid) {this->pid = pid;};
         virtual ~Node(){}
-        virtual Node *lookup(const KeyType& k) = 0;
+        // virtual Node *lookup(const KeyType& k) = 0;
         virtual void Scan(
             const KeyType& key,
             bool equality, ScanResult &map,
@@ -117,7 +117,7 @@ namespace peloton {
         friend class BWTree;
       public:
         LeafNode(const BWTree &bwTree_) : Node(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
-        Node *Lookup(const KeyType& k);
+        // Node *Lookup(const KeyType& k);
         void Scan(const KeyType& key, bool equality, ScanResult &map, Node *&node);
       private:
 

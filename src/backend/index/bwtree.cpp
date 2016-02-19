@@ -76,31 +76,31 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::GetNode(PID pid) {
 /**
  * NODE LOOKUP FUNCTIONS
  */
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::Node*
-BWTree<KeyType, ValueType, KeyComparator>::LeafNode::Lookup(const KeyType& k)
-{
-  if(items.empty()) {
-    return nullptr;
-  }
-
-  size_t b = 0, e = items.size() - 1;
-  while(b < e){
-    size_t m = b + (e - b) / 2;
-    const auto& key = items[m].first;
-    if(Node::bwTree.IsKeyEqual(k, key)){
-      // find
-      return static_cast<Node *>(this);
-    }else if(Node::bwTree.key_comp(key, k)){
-      // key < target ?
-      b = ++m;
-    }else{
-      // key > target
-      e = --m;
-    }
-  }
-  return nullptr;
-}
+//template <typename KeyType, typename ValueType, class KeyComparator>
+//typename BWTree<KeyType, ValueType, KeyComparator>::Node*
+//BWTree<KeyType, ValueType, KeyComparator>::LeafNode::Lookup(const KeyType& k)
+//{
+//  if(items.empty()) {
+//    return nullptr;
+//  }
+//
+//  size_t b = 0, e = items.size() - 1;
+//  while(b < e){
+//    size_t m = b + (e - b) / 2;
+//    const auto& key = items[m].first;
+//    if(Node::bwTree.IsKeyEqual(k, key)){
+//      // find
+//      return static_cast<Node *>(this);
+//    }else if(Node::bwTree.key_comp(key, k)){
+//      // key < target ?
+//      b = ++m;
+//    }else{
+//      // key > target
+//      e = --m;
+//    }
+//  }
+//  return nullptr;
+//}
 
 template <typename KeyType, typename ValueType, class KeyComparator>
 void BWTree<KeyType, ValueType, KeyComparator>::InnerNode::Scan(
