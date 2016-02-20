@@ -173,13 +173,19 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertDelta::Sear
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
-PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::LeafNode::Buffer(__attribute__((unused)) BufferResult &result) { }
+typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker>::PID
+BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker>::LeafNode::Buffer(__attribute__((unused)) BufferResult &result)
+{ return INVALID_PID; }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
-PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::DeleteDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
+typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker>::PID
+BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker>::DeleteDelta::Buffer(__attribute__((unused)) BufferResult &result)
+{ return INVALID_PID; }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
-PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::InsertDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::PID
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertDelta::Buffer(__attribute__((unused)) BufferResult &result)
+{ return INVALID_PID; }
 
 
 

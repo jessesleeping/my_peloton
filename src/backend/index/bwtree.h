@@ -29,7 +29,9 @@ namespace peloton {
 // TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
 // similar like stx_btree (return a iterator to the sorted buffer);
 
+    /** BWTREE CLASS **/
     class DataNode;
+    /** BWTREE CLASS **/
     public:
       typedef oid_t PID;
       typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
@@ -96,6 +98,13 @@ namespace peloton {
         void SetPID(PID pid) {this->pid = pid;};
         virtual ~Node(){}
 
+        /**
+         * @brief Search a key in the bwtree, if upwards is true, return the first DataNode that has the key that is
+         * larger than target.
+         * @param target Key to find
+         * @param upwards Search direction
+         * @return The first DataNode that contains the key
+         */
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
 
 //        /**
