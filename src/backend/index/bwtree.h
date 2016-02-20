@@ -29,9 +29,10 @@ namespace peloton {
 // TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
 // similar like stx_btree (return a iterator to the sorted buffer);
 
+    class DataNode;
     public:
       typedef oid_t PID;
-      typedef std::multimap<KeyType, ValueType, KeyComparator> ScanResult;
+      typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       // reference: https://gist.github.com/jeetsukumaran/307264
@@ -94,11 +95,21 @@ namespace peloton {
 
         void SetPID(PID pid) {this->pid = pid;};
         virtual ~Node(){}
-        // virtual Node *lookup(const KeyType& k) = 0;
-        virtual void Scan(
-            const KeyType& lowerBound,
-            bool equality, ScanResult &scanRes,
-            Node *&nodeRes) = 0;
+
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+
+//        /**
+//         * @brief Scan the bwtree given a lower_bound on the key. Notice that this function will only
+//         * @param lower_bound The lower bound of the key to be scanned from
+//         * @param equality True if only scan key equals lower_bound
+//         * @param scan_res The scan results will be in scan_res when return
+//         * @param next The next PID of the BWTree node to be scanned
+//         */
+//        virtual void ScanUp(
+//            const KeyType& lower_bound,
+//            bool equality,
+//            ScanResult &scan_res,
+//            PID &next) = 0;
       };
 
       /** @brief Class for BWTree inner node */
@@ -106,45 +117,56 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
-        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
+        DataNode *Search(KeyType target, bool upwards);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
       };
 
-      /** @brief Class for BWTree leaf node  */
-      class LeafNode : protected Node {
+      class DataNode : protected Node {
         friend class BWTree;
       public:
-        LeafNode(const BWTree &bwTree_) : Node(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
-        // Node *Lookup(const KeyType& k);
-        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
+        DataNode(const BWTree &bwTree_) : Node(bwTree_){};
       private:
+        virtual void Buffer(BufferResult &result) = 0;
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+      };
 
+      /** @brief Class for BWTree leaf node  */
+      class LeafNode : protected DataNode {
+        friend class BWTree;
+      public:
+        LeafNode(const BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
+        void Buffer(BufferResult &result);
+        DataNode *Search(KeyType target, bool upwards);
+      private:
         PID prev;
         PID next;
         std::vector<std::pair<KeyType, ValueType> > items;
       };
 
       /** @brief Class for BWTree Insert Delta node */
-      class InsertDelta : protected Node {
+      class InsertDelta : protected DataNode {
       public:
-        InsertDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
-        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
+        InsertDelta(const BWTree &bwTree_): DataNode(bwTree_), next(nullptr), info() {};
+        void Buffer(BufferResult &result);
+        DataNode *Search(KeyType target, bool upwards);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
       };
 
       /** @brief Class for Delete Delta node */
-      class DeleteDelta : protected Node {
+      class DeleteDelta : protected DataNode {
       public:
-        DeleteDelta(const BWTree &bwTree_): Node(bwTree_), next(nullptr), info() {};
-        void Scan(const KeyType& lowerBound, bool equality, ScanResult &scanRes, Node *&nodeRes);
+        DeleteDelta(const BWTree &bwTree_): DataNode(bwTree_), next(nullptr), info() {};
+        void Buffer(BufferResult &result);
+        DataNode *Search(KeyType target, bool upwards);
       private:
         Node *next;
         std::pair<KeyType, ValueType> info;
       };
+
 
 
     private:
