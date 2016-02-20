@@ -16,8 +16,8 @@
 namespace peloton {
 namespace index {
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTree(KeyComparator kcp):
   key_comp(kcp),
   node_table(NODE_TABLE_DFT_CAPACITY) {
 
@@ -33,8 +33,8 @@ BWTree<KeyType, ValueType, KeyComparator>::BWTree(KeyComparator kcp):
   root->children.emplace_back(std::make_pair(std::numeric_limits<KeyType>::max(), pid));
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-BWTree<KeyType, ValueType, KeyComparator>::NodeTable::NodeTable(size_t capacity = NODE_TABLE_DFT_CAPACITY) :
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::NodeTable::NodeTable(size_t capacity = NODE_TABLE_DFT_CAPACITY) :
   table(capacity)
 {
   for (auto &item : table) {
@@ -43,16 +43,16 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::NodeTable(size_t capacity 
 }
 
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-bool BWTree<KeyType, ValueType, KeyComparator>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
 {
   auto &item = table[old_node->pid];
   return item.compare_exchange_weak(old_node, new_node);
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::PID
-BWTree<KeyType, ValueType, KeyComparator>::NodeTable::InsertNode(Node *node) {
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::PID
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::NodeTable::InsertNode(Node *node) {
   PID new_pid = next_pid++;
   if (new_pid >= table.capacity()) {
     LOG_ERROR("BWTree mapping table is full, can't insert new node");
@@ -65,9 +65,9 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::InsertNode(Node *node) {
   return new_pid;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::Node*
-BWTree<KeyType, ValueType, KeyComparator>::NodeTable::GetNode(PID pid) {
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Node*
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::NodeTable::GetNode(PID pid) {
   assert(pid < table.capacity());
 
   return table[pid].load();
@@ -78,7 +78,7 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::GetNode(PID pid) {
  */
 
 //template <typename KeyType, typename ValueType, class KeyComparator>
-//void BWTree<KeyType, ValueType, KeyComparator>::InnerNode::Scan(
+//void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InnerNode::Scan(
 //  __attribute__((unused)) const KeyType& lowerBound,
 //  __attribute__((unused)) bool equality,
 //  __attribute__((unused)) BufferResult &scanRes,
@@ -87,7 +87,7 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::GetNode(PID pid) {
 //
 //
 //template <typename KeyType, typename ValueType, class KeyComparator>
-//void BWTree<KeyType, ValueType, KeyComparator>::LeafNode::Scan(
+//void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::LeafNode::Scan(
 //  const KeyType& lowerBound, bool equality, BufferResult &scanRes, Node *&nodeRes) {
 //
 //  nodeRes = this;
@@ -136,73 +136,90 @@ BWTree<KeyType, ValueType, KeyComparator>::NodeTable::GetNode(PID pid) {
 //
 //}
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator>::InnerNode::Search(
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InnerNode::Search(
   __attribute__((unused)) KeyType target,
   __attribute__((unused)) bool upwards)
 {
   return nullptr;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator>::LeafNode::Search(
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::LeafNode::Search(
   __attribute__((unused)) KeyType target,
   __attribute__((unused)) bool upwards)
 {
   return nullptr;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator>::DeleteDelta::Search(
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DeleteDelta::Search(
   __attribute__((unused)) KeyType target,
   __attribute__((unused)) bool upwards)
 {
   return nullptr;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-typename BWTree<KeyType, ValueType, KeyComparator>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator>::InsertDelta::Search(
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertDelta::Search(
   __attribute__((unused)) KeyType target,
   __attribute__((unused)) bool upwards)
 {
   return nullptr;
 }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-void BWTree<KeyType, ValueType, KeyComparator>::LeafNode::Buffer(__attribute__((unused)) BufferResult &result) { }
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::LeafNode::Buffer(__attribute__((unused)) BufferResult &result) { }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-void BWTree<KeyType, ValueType, KeyComparator>::DeleteDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::DeleteDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
 
-template <typename KeyType, typename ValueType, class KeyComparator>
-void BWTree<KeyType, ValueType, KeyComparator>::InsertDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+PID BWTree<KeyType, ValueType, KeyComparator, typename KeyEqualityChecker>::InsertDelta::Buffer(__attribute__((unused)) BufferResult &result) { }
 
 
 
 
 // Explicit template instantiation
-template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>>;
-template class BWTree<IntsKey<2>, ItemPointer, IntsComparator<2>>;
-template class BWTree<IntsKey<3>, ItemPointer, IntsComparator<3>>;
-template class BWTree<IntsKey<4>, ItemPointer, IntsComparator<4>>;
+template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
+  IntsEqualityChecker<1>>;
+template class BWTree<IntsKey<2>, ItemPointer, IntsComparator<2>,
+  IntsEqualityChecker<2>>;
+template class BWTree<IntsKey<3>, ItemPointer, IntsComparator<3>,
+  IntsEqualityChecker<3>>;
+template class BWTree<IntsKey<4>, ItemPointer, IntsComparator<4>,
+  IntsEqualityChecker<4>>;
 
-template class BWTree<GenericKey<4>, ItemPointer, GenericComparator<4>>;
-template class BWTree<GenericKey<8>, ItemPointer, GenericComparator<8>>;
-template class BWTree<GenericKey<12>, ItemPointer, GenericComparator<12>>;
-template class BWTree<GenericKey<16>, ItemPointer, GenericComparator<16>>;
-template class BWTree<GenericKey<24>, ItemPointer, GenericComparator<24>>;
-template class BWTree<GenericKey<32>, ItemPointer, GenericComparator<32>>;
-template class BWTree<GenericKey<48>, ItemPointer, GenericComparator<48>>;
-template class BWTree<GenericKey<64>, ItemPointer, GenericComparator<64>>;
-template class BWTree<GenericKey<96>, ItemPointer, GenericComparator<96>>;
-template class BWTree<GenericKey<128>, ItemPointer, GenericComparator<128>>;
-template class BWTree<GenericKey<256>, ItemPointer, GenericComparator<256>>;
-template class BWTree<GenericKey<512>, ItemPointer, GenericComparator<512>>;
+template class BWTree<GenericKey<4>, ItemPointer, GenericComparator<4>,
+  GenericEqualityChecker<4>>;
+template class BWTree<GenericKey<8>, ItemPointer, GenericComparator<8>,
+  GenericEqualityChecker<8>>;
+template class BWTree<GenericKey<12>, ItemPointer, GenericComparator<12>,
+  GenericEqualityChecker<12>>;
+template class BWTree<GenericKey<16>, ItemPointer, GenericComparator<16>,
+  GenericEqualityChecker<16>>;
+template class BWTree<GenericKey<24>, ItemPointer, GenericComparator<24>,
+  GenericEqualityChecker<24>>;
+template class BWTree<GenericKey<32>, ItemPointer, GenericComparator<32>,
+  GenericEqualityChecker<32>>;
+template class BWTree<GenericKey<48>, ItemPointer, GenericComparator<48>,
+  GenericEqualityChecker<48>>;
+template class BWTree<GenericKey<64>, ItemPointer, GenericComparator<64>,
+  GenericEqualityChecker<64>>;
+template class BWTree<GenericKey<96>, ItemPointer, GenericComparator<96>,
+  GenericEqualityChecker<96>>;
+template class BWTree<GenericKey<128>, ItemPointer, GenericComparator<128>,
+  GenericEqualityChecker<128>>;
+template class BWTree<GenericKey<256>, ItemPointer, GenericComparator<256>,
+  GenericEqualityChecker<256>>;
+template class BWTree<GenericKey<512>, ItemPointer, GenericComparator<512>,
+  GenericEqualityChecker<512>>;
 
-template class BWTree<TupleKey, ItemPointer, TupleKeyComparator>;
+template class BWTree<TupleKey, ItemPointer, TupleKeyComparator,
+  TupleKeyEqualityChecker>;
 }  // End index namespace
 }  // End peloton namespace
