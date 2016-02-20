@@ -81,7 +81,7 @@ namespace peloton {
 
       /** @brief Class for BWTree node, only provides common interface */
       class Node {
-        friend class BWTree; // 我们为什么要这个
+        friend class BWTree;
 
       protected:
         const BWTree& bwTree;
