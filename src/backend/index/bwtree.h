@@ -23,7 +23,7 @@ namespace peloton {
 
 // Look up the stx btree interface for background.
 // peloton/third_party/stx/btree.h
-    template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker>
+    template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
     class BWTree {
 // TODO: disable default/copy constructor
 // TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
@@ -179,6 +179,7 @@ namespace peloton {
     private:
       /** DATA FIELD **/
       KeyComparator key_comp;
+      ValueEqualityChecker val_equals;
       NodeTable node_table;
     };
 

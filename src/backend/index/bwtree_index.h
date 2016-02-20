@@ -26,16 +26,25 @@
 namespace peloton {
 namespace index {
 
+
+class ItemPointerEqualChecker {
+  inline bool operator() (const ItemPointer &pointer1, const ItemPointer &pointer2) const {
+    return (pointer1.block == pointer2.block &&
+        pointer1.offset == pointer2.offset);
+  }
+};
+
 /**
  * BW tree-based index implementation.
  *
  * @see Index
  */
 template <typename KeyType, typename ValueType, typename KeyComparator, typename KeyEqualityChecker>
+
 class BWTreeIndex : public Index {
   friend class IndexFactory;
 
-  typedef BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker> MapType;
+  typedef BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ItemPointerEqualChecker> MapType;
 
  public:
   BWTreeIndex(IndexMetadata *metadata);
