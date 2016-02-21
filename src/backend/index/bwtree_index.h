@@ -28,6 +28,7 @@ namespace index {
 
 
 class ItemPointerEqualChecker {
+public:
   inline bool operator() (const ItemPointer &pointer1, const ItemPointer &pointer2) const {
     return (pointer1.block == pointer2.block &&
         pointer1.offset == pointer2.offset);

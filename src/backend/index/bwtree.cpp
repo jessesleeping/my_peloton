@@ -174,21 +174,45 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
-BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(__attribute__((unused)) BufferResult &result)
-{ return INVALID_PID; }
+BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult &result, bool upwards) {
+  for(auto item : items){
+    result.insert(item);
+  }
+  return upwards ? this->next : this->prev;
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
-BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Buffer(__attribute__((unused)) BufferResult &result)
-{ return INVALID_PID; }
+BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Buffer(BufferResult &result, bool upwards) {
+  // buffer succeed firstly
+  auto resPid = next->Buffer(result, upwards);
+
+  // apply delete
+  auto searchRes = result.equal_range(info.first);
+  for(auto itr = searchRes.first; itr != searchRes.second; itr++){
+    if(Node::bwTree.val_equals(info.second, itr->second)){
+      result.erase(itr);
+      break;
+    }
+  }
+
+  return resPid;
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::PID
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Buffer(__attribute__((unused)) BufferResult &result)
-{ return INVALID_PID; }
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Buffer(BufferResult &result, bool upwards) {
+  auto resPid = next->Buffer(result, upwards);
+
+  // apply insert
+  result.insert(info);
+
+  return resPid;
+}
 
 
 class ItemPointerEqualChecker {
+public:
   inline bool operator() (const ItemPointer &pointer1, const ItemPointer &pointer2) const {
     return (pointer1.block == pointer2.block &&
             pointer1.offset == pointer2.offset);
