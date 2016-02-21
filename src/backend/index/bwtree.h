@@ -46,6 +46,22 @@ namespace peloton {
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
       BWTree() = delete;
 
+    public:
+      class Scanner {
+      private:
+        BufferResult buffer_result;
+        BufferResult::iterator curriter;
+        PID next_pid;
+        bool equal;
+        KeyType key;
+      public:
+        Scanner() = delete;
+        Scanner(const Scanner& scanner) = delete;
+        Scanner(KeyType k, bool eq) :key(k), equal(eq) {}
+        const KeyType &GetKey();
+        const ValueType &GetValue();
+        bool Next();
+      };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
       class Node;
@@ -85,6 +101,7 @@ namespace peloton {
       /** @brief Class for BWTree node, only provides common interface */
       class Node {
         friend class BWTree;
+        friend class iterator;
 
       protected:
         const BWTree& bwTree;
