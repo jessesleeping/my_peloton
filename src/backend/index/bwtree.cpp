@@ -126,7 +126,32 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   KeyType target,
   bool forward)
 {
-  assert(!this->items.empty());
+  if(forward){
+
+    // empty
+    // max < target
+    // go to next
+    if(items.empty() || Node::bwTree.key_comp(items.back().first, target)){
+      if(next == INVALID_PID){
+        return nullptr;
+      }else{
+        return Node::bwTree.node_table.GetNode(next)->Search(target, forward);
+      }
+    }
+  }
+
+  else{
+    // empty
+    // target < min
+    // go to prev
+    if(items.empty() || Node::bwTree.key_comp(target, items.front().first)){
+      if(prev == INVALID_PID){
+        return nullptr;
+      }else{
+        return Node::bwTree.node_table.GetNode(prev)->Search(target, forward);
+      }
+    }
+  }
 
   return this;
 }
