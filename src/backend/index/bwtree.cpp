@@ -126,6 +126,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   __attribute__((unused)) KeyType target,
   __attribute__((unused)) bool forward)
 {
+
+  /*
   if(forward){
 
     // empty
@@ -152,7 +154,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       }
     }
   }
-
+  */
   return this;
 }
 
@@ -183,7 +185,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
 BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult &result, bool upwards) {
-  for(auto item : items){
+  for(auto& item : items){
+    // result.emplace(item);
     result.insert(item);
   }
   return upwards ? this->next : this->prev;
@@ -199,6 +202,7 @@ BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChec
   auto searchRes = result.equal_range(info.first);
   for(auto itr = searchRes.first; itr != searchRes.second; itr++){
     if(Node::bwTree.val_equals(info.second, itr->second)){
+      // erase free the memory of itr???
       result.erase(itr);
       break;
     }
