@@ -4,10 +4,10 @@
 
 ## TODO List
 * CKP 1 (due in 02/21/2016)
-	* **implement iterator:** jiexi
-	* **scan:** rxian + runshenz
-	* **bwtree insert, delete interface:** ??
-	* **bwtree index wrapper:** ?? 
+	* [ ] **implement iterator:** jiexi
+	* [x] **scan:** rxian + runshenz -> Change to `Search` and `Buffer`
+	* [ ] **bwtree insert, delete interface:** ?? 
+	* [ ] **bwtree index wrapper:** ?? 
 	* **test:** ??
 * **node_table, fixed size --> dynamic resize. (list + vector)** ??
 
