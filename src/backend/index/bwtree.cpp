@@ -17,8 +17,9 @@ namespace peloton {
 namespace index {
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::BWTree(KeyComparator kcp):
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::BWTree(KeyComparator kcp, KeyEqualityChecker keq):
   key_comp(kcp),
+  key_equals(keq),
   val_equals(ValueEqualityChecker()),
   node_table(NODE_TABLE_DFT_CAPACITY) {
   // Create a root node
@@ -67,82 +68,56 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Node*
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::GetNode(PID pid) {
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::GetNode(PID pid) const
+{
   assert(pid < table.capacity());
 
   return table[pid].load();
 }
 
-/**
- * NODE LOOKUP FUNCTIONS
- */
-
-//template <typename KeyType, typename ValueType, class KeyComparator>
-//void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Scan(
-//  __attribute__((unused)) const KeyType& lowerBound,
-//  __attribute__((unused)) bool equality,
-//  __attribute__((unused)) BufferResult &scanRes,
-//  __attribute__((unused)) Node *&nodeRes)
-//{}
-//
-//
-//template <typename KeyType, typename ValueType, class KeyComparator>
-//void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Scan(
-//  const KeyType& lowerBound, bool equality, BufferResult &scanRes, Node *&nodeRes) {
-//
-//  nodeRes = this;
-//  if(items.empty()){
-//    return;
-//  }
-//  size_t b = 0, e = items.size() - 1;
-//  while(b < e){
-//    size_t m = b + (e - b) / 2;
-//    auto &k = items[m].first;
-//    if(Node::bwTree.IsKeyEqual(lowerBound, k)){
-//      // find
-//      break;
-//    }else if(Node::bwTree.key_comp(k, lowerBound)){
-//      // key < lowerBound
-//      b = ++m;
-//    }else{
-//      // key > lowerBound
-//      e = m;
-//    }
-//  }
-//  assert(b == e);
-//  // b == e
-//  auto &k = items[b].first;
-//  if(Node::bwTree.key_comp(k, lowerBound)){
-//    assert(e == items.size() - 1);
-//    return;
-//  }
-//
-//  // debug
-//  if(b > 0){
-//    assert(Node::bwTree.key_comp(items[b - 1].first, lowerBound));
-//  }
-//
-//  for(; b < items.size(); b++){
-//    auto &k = items[b].first;
-//    auto &v = items[b].second;
-//    if(equality && !Node::bwTree.IsKeyEqual(k, lowerBound)){
-//      break;
-//    }
-//    assert(Node::bwTree.key_comp(lowerBound, k) ||
-//           Node::bwTree.IsKeyEqual(lowerBound, k));
-//
-//    scanRes.insert(std::make_pair(k,v));
-//  }
-//
-//}
-
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(
-  __attribute__((unused)) KeyType target,
-  __attribute__((unused)) bool upwards)
+  KeyType target,
+  bool forward)
 {
-  return nullptr;
+  PID next_pid = INVALID_PID;
+  long left = 0, right = this->children.size()-1;
+
+  if (forward) {
+    while (left<right) {
+
+      if (left+1 == right) {
+        if (Node::bwTree.key_comp(target, this->children[left].first)) {
+          next_pid = this->children[left].second;
+        } else {
+          assert(Node::bwTree.key_comp(target, this->children[right].first));
+          next_pid = this->children[right].second;
+        }
+        break;
+      }
+
+      long mid = left + (right - left) / 2;
+      auto &mid_key = this->children[mid].first;
+      if (Node::bwTree.key_equals(mid_key, target)) {
+        next_pid = this->children[mid + 1].second;
+        assert(mid+1<children.size());
+        break;
+      }
+
+      if (Node::bwTree.key_comp(target, mid_key)) {
+        right = mid;
+      } else {
+        left = mid+1;
+      }
+    }
+  } else {
+    return nullptr;
+  }
+
+  assert(next_pid != INVALID_PID);
+  Node *next_node = Node::bwTree.node_table.GetNode(next_pid);
+  return next_node->Search(target, forward);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>

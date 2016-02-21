@@ -31,6 +31,8 @@ namespace peloton {
 
     /** BWTREE CLASS **/
     class DataNode;
+    class InnerNode;
+    friend class InnerNode;
     /** BWTREE CLASS **/
     public:
       typedef oid_t PID;
@@ -41,9 +43,8 @@ namespace peloton {
       class Iterator;
 
     public:
-      BWTree(KeyComparator kcp);
+      BWTree(KeyComparator kcp, KeyEqualityChecker kec);
       BWTree() = delete;
-      bool IsKeyEqual(const KeyType &k1, const KeyType &k2) const { return !key_comp(k1, k2) && !key_comp(k2, k1); }
 
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
@@ -78,7 +79,7 @@ namespace peloton {
         /**
          * @brief Get a node by its pid.
          */
-        Node *GetNode(PID pid);
+        Node *GetNode(PID pid) const;
       };
 
       /** @brief Class for BWTree node, only provides common interface */
@@ -179,6 +180,7 @@ namespace peloton {
     private:
       /** DATA FIELD **/
       KeyComparator key_comp;
+      KeyEqualityChecker key_equals;
       ValueEqualityChecker val_equals;
       NodeTable node_table;
     };
