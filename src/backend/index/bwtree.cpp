@@ -81,7 +81,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
 {
+  assert(old_node);
+  assert(new_node);
+  assert(old_node->GetPID() == new_node->GetPID());
   auto &item = table[old_node->pid];
+
+  // set new node 's pid ??
   return item.compare_exchange_weak(old_node, new_node);
 }
 
@@ -272,6 +277,8 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(KeyType k,
                                                                                                     ValueType v) {
   auto dt_node = node_table.GetNode(0)->Search(k, true);
+  auto ins_node = new InsertDelta(*this, k, v);
+  ins_node.
 }
 
 
