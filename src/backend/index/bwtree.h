@@ -74,8 +74,10 @@ namespace peloton {
         Scanner() = delete;
         Scanner(const Scanner& scanner) = delete;
         Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp);
-        const std::pair<KeyType, ValueType> &getNext();
+        std::pair<KeyType, ValueType> GetNext();
         bool HasNext();
+      private:
+        void GetNextNode();
       };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.

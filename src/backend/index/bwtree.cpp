@@ -39,38 +39,48 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   buffer_result(kcmp),
   iterator_cur(),
   iterator_end(),
-  next_pid(),
+  next_pid(INVALID_PID),
   equal(eq),
   forward(fw),
   key(k),
   bwTree(bwTree_)
 {
-  DataNode *node = bwTree.node_table.GetNode(0)->Search(key, forward);
-  next_pid = node->Buffer(buffer_result, forward);
-  auto iterator_pair = buffer_result.equal_range(key);
-  iterator_cur = iterator_pair.first;
-  iterator_end = iterator_pair.second;
+  iterator_cur = buffer_result.end();
+  iterator_end = buffer_result.end();
+  DataNode *data_node = bwTree.node_table.GetNode(0)->Search(key, forward);
+  next_pid = data_node->Buffer(buffer_result, forward);
+  auto iterators = buffer_result.equal_range(key);
+  iterator_cur = iterators.first;
+  iterator_end = equal ? iterators.second : buffer_result.end();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-const std::pair<KeyType, ValueType> &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
+std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
-
+  std::pair<KeyType, ValueType> scan_res = *iterator_cur;
+  if (++iterator_cur == iterator_end && iterator_end == buffer_result.end() && next_pid != INVALID_PID) {
+    // make new buffer
+    DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
+    assert(data_node != NULL);
+    next_pid = data_node->Buffer(buffer_result, forward);
+    if (equal) {
+      auto iterators = buffer_result.equal_range(key);
+      iterator_cur = iterators.first;
+      iterator_end = iterators.second;
+    } else {
+      iterator_cur = buffer_result.begin();
+      iterator_end = buffer_result.end();
+    }
+  }
+  return scan_res;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::HasNext()
 {
-  if (equal) {
-    // Scan a single key
-    if (iterator_cur == iterator_end) {
-      return false;
-    }
-  } else {
-    // Scan from a key
-    if (next_pid == INVALID_PID) {
-      return false;
-    }
+  // In case some valid datanode returns empty buffer. Otherwise we can simply return (cur != end)
+  if ((equal || next_pid == INVALID_PID) && iterator_cur == iterator_end) {
+    return false;
   }
   return true;
 }
