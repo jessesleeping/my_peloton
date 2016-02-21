@@ -35,8 +35,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_):
-  buffer_result(),
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp):
+  buffer_result(kcmp),
   iterators(),
   next_pid(),
   equal(eq),
@@ -60,7 +60,7 @@ const KeyType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, Val
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 const ValueType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetValue()
 {
-  return nullptr;
+  return this->buffer_result.begin()->second;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -274,6 +274,27 @@ public:
   }
 };
 
+
+//==-------------------------------------------
+/////////// BwTree Implementation /////////////
+//==-------------------------------------------
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+bool
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(const KeyType &k, const ValueType &v)
+{
+  // First locate the data node to delete the key
+  auto root = node_table.GetNode(0);
+  auto dnode = root->Search(k, true);
+  PID pid = dnode->GetPID();
+  // Construct a delete delta
+  auto old_node = node_table.GetNode(pid);
+  DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
+  // CAS into the mapping table
+  bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
+
+  return success;
+}
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v) {
@@ -284,7 +305,6 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   assert(dt_node->GetPID() == old_node->GetPID());
   return node_table.UpdateNode(old_node, (Node *)ins_node);
 }
-
 
 // Explicit template instantiation
 template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
