@@ -69,6 +69,11 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   return false;
 }
 
+
+//==----------------------------------
+///////// MAPPING TABLE FUNCTIONS
+//==----------------------------------
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::NodeTable(size_t capacity = NODE_TABLE_DFT_CAPACITY) :
   table(capacity)
@@ -77,7 +82,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     item.store(nullptr);
   }
 }
-
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
@@ -250,7 +254,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 }
 
 //==-----------------------------
-////////// BUFFER FUNCTION
+////////// BUFFER FUNCTIONS
 //==-----------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
@@ -331,6 +335,15 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   auto ins_node = new InsertDelta(*this, k, v, (DataNode *)old_node);
   assert(dt_node->GetPID() == old_node->GetPID());
   return node_table.UpdateNode(old_node, (Node *)ins_node);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scan(const KeyType &key,
+                                                                                          bool forward, bool equality)
+{
+  Scanner *scannerp = new Scanner(key, forward, equality, *this, key_comp);
+  return std::unique_ptr<Scanner>(scannerp);
 }
 
 // Explicit template instantiation

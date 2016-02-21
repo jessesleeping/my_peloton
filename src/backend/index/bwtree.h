@@ -14,6 +14,7 @@
 #include <vector>
 #include <atomic>
 #include <map>
+#include <memory>
 #include "backend/common/types.h"
 // #include "backend/common/platform.h"
 
@@ -30,8 +31,14 @@ namespace peloton {
 // similar like stx_btree (return a iterator to the sorted buffer);
 
     /** BWTREE CLASS **/
-    class DataNode;
-    class InnerNode;
+    private:
+      class DataNode;
+      class InnerNode;
+      class Node;
+
+    public:
+      class Scanner;
+
     friend class InnerNode;
     /** BWTREE CLASS **/
     public:
@@ -44,10 +51,14 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
-      bool InsertKV(const KeyType &k, const ValueType &v);
-      bool DeleteKV(const KeyType &k, const ValueType &v);
       BWTree() = delete;
 
+      /** @brief Insert a key/val pair from the bwtree */
+      bool InsertKV(const KeyType &k, const ValueType &v);
+      /** @brief Delete a key/val pair from the bwtree */
+      bool DeleteKV(const KeyType &k, const ValueType &v);
+      /** @brief Scan the BwTree given a key and direction */
+      std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
     public:
       class Scanner {
       private:
@@ -69,7 +80,6 @@ namespace peloton {
       };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
-      class Node;
 
       class NodeTable {
       private:
