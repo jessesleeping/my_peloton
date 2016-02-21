@@ -59,8 +59,8 @@ namespace peloton {
         const BWTree &bwTree;
       public:
         Scanner() = delete;
-        Scanner(const Scanner& scanner, const BWTree &bwTree_) = delete;
-        Scanner(KeyType k, bool eq);
+        Scanner(const Scanner& scanner) = delete;
+        Scanner(KeyType k, bool eq, const BWTree &bwTree_);
         const KeyType &GetKey();
         const ValueType &GetValue();
         bool Next();
