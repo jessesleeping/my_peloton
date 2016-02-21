@@ -44,8 +44,8 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
-      bool InsertKV(KeyType k, ValueType v);
-      bool DeleteKV(KeyType k, ValueType v);
+      bool InsertKV(const KeyType &k, const ValueType &v);
+      bool DeleteKV(const KeyType &k, const ValueType &v);
       BWTree() = delete;
 
     public:
@@ -128,7 +128,7 @@ namespace peloton {
          * @param upwards Search direction
          * @return The first DataNode that contains the key
          */
-        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
 
 //        /**
 //         * @brief Scan the bwtree given a lower_bound on the key. Notice that this function will only
@@ -149,7 +149,7 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
-        DataNode *Search(KeyType target, bool upwards);
+        DataNode *Search(KeyType target, bool upwards = true);
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -160,8 +160,8 @@ namespace peloton {
       public:
         DataNode(const BWTree &bwTree_) : Node(bwTree_){};
       private:
-        virtual PID Buffer(BufferResult &result, bool upwards) = 0;
-        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
+        virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
       };
 
       /** @brief Class for BWTree leaf node  */
@@ -169,8 +169,8 @@ namespace peloton {
         friend class BWTree;
       public:
         LeafNode(const BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
-        PID Buffer(BufferResult &result, bool upwards);
-        DataNode *Search(KeyType target, bool upwards);
+        PID Buffer(BufferResult &result, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards = true);
       private:
         PID prev;
         PID next;
@@ -181,9 +181,9 @@ namespace peloton {
       class InsertDelta : protected DataNode {
       public:
         InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
-                                                                                  info(std::make_pair(k,v)) {};
-        PID Buffer(BufferResult &result, bool upwards);
-        DataNode *Search(KeyType target, bool upwards);
+                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());};
+        PID Buffer(BufferResult &result, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards = true);
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
@@ -194,8 +194,8 @@ namespace peloton {
       public:
         DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) {};
-        PID Buffer(BufferResult &result, bool upwards);
-        DataNode *Search(KeyType target, bool upwards);
+        PID Buffer(BufferResult &result, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards = true);
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
