@@ -52,11 +52,10 @@ namespace peloton {
       class Scanner {
       private:
         BufferResult buffer_result;
-        std::pair<BufferResult::iterator, BufferResult::iterator> iterators;
+        std::pair<typename BufferResult::iterator, typename BufferResult::iterator> iterators;
         PID next_pid;
         bool equal;
         bool forward;
-        bool has_next;
         KeyType key;
         const BWTree &bwTree;
       public:

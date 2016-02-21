@@ -41,14 +41,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   next_pid(),
   equal(eq),
   forward(fw),
-  has_next(),
   key(k),
   bwTree(bwTree_)
 {
   DataNode *node = bwTree.node_table.GetNode(0)->Search(key, forward);
   next_pid = node->Buffer(buffer_result, forward);
   iterators = buffer_result.equal_range(key);
-  has_next = (iterators.first != buffer_result.end());
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -60,7 +58,7 @@ const KeyType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, Val
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 const ValueType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetValue()
 {
-  return nullptr;
+  return *iterators.first;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
