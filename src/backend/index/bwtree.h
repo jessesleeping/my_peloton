@@ -44,8 +44,26 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
+      void InsertKV(KeyType k, ValueType v);
+      void DeleteKV(KeyType k, ValueType v);
       BWTree() = delete;
 
+    public:
+      class Scanner {
+      private:
+        BufferResult buffer_result;
+        BufferResult::iterator curriter;
+        PID next_pid;
+        bool equal;
+        KeyType key;
+      public:
+        Scanner() = delete;
+        Scanner(const Scanner& scanner) = delete;
+        Scanner(KeyType k, bool eq) :key(k), equal(eq) {}
+        const KeyType &GetKey();
+        const ValueType &GetValue();
+        bool Next();
+      };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
       class Node;
@@ -85,6 +103,7 @@ namespace peloton {
       /** @brief Class for BWTree node, only provides common interface */
       class Node {
         friend class BWTree;
+        friend class iterator;
 
       protected:
         const BWTree& bwTree;
@@ -158,7 +177,8 @@ namespace peloton {
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : protected DataNode {
       public:
-        InsertDelta(const BWTree &bwTree_): DataNode(bwTree_), next(nullptr), info() {};
+        InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v): DataNode(bwTree_), next(nullptr),
+                                                                                  info(std::make_pair(k,v)) {};
         PID Buffer(BufferResult &result, bool upwards);
         DataNode *Search(KeyType target, bool upwards);
       private:
@@ -169,7 +189,8 @@ namespace peloton {
       /** @brief Class for Delete Delta node */
       class DeleteDelta : protected DataNode {
       public:
-        DeleteDelta(const BWTree &bwTree_): DataNode(bwTree_), next(nullptr), info() {};
+        DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v): DataNode(bwTree_), next(nullptr),
+                                                                                  info(std::make_pair(k,v)) {};
         PID Buffer(BufferResult &result, bool upwards);
         DataNode *Search(KeyType target, bool upwards);
       private:
