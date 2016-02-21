@@ -231,6 +231,13 @@ public:
   }
 };
 
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(KeyType k,
+                                                                                                    ValueType v) {
+  auto dt_node = node_table.GetNode(0)->Search(k, true);
+}
+
+
 // Explicit template instantiation
 template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
   IntsEqualityChecker<1>, ItemPointerEqualChecker>;

@@ -116,6 +116,7 @@ namespace peloton {
         Node(const BWTree &bwTree_)  : bwTree(bwTree_), pid(INVALID_PID) {};
 
         void SetPID(PID pid) {this->pid = pid;};
+        PID GetPID() const{ return this->pid;};
         virtual ~Node(){}
 
         /**
