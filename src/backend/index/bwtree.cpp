@@ -234,12 +234,32 @@ public:
   }
 };
 
+
+//==-------------------------------------------
+/////////// BwTree Implementation /////////////
+//==-------------------------------------------
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(KeyType k, ValueType v)
+{
+  // First locate the data node to delete the key
+  auto root = node_table.GetNode(0);
+  auto dnode = root->Search(k, true);
+  PID pid = dnode->GetPID();
+  // Construct a delete delta
+  DeleteDelta *delta = new DeleteDelta(*this, k, v);
+  auto old_node = node_table.GetNode(pid);
+  // CAS into the mapping table
+  bool success = node_table.UpdateNode(old_node, static_cast<Node *>delta);
+
+  return success;
+}
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(KeyType k,
                                                                                                     ValueType v) {
   auto dt_node = node_table.GetNode(0)->Search(k, true);
 }
-
 
 // Explicit template instantiation
 template class BWTree<IntsKey<1>, ItemPointer, IntsComparator<1>,
