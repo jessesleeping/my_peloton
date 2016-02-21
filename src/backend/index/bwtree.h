@@ -56,6 +56,7 @@ namespace peloton {
         PID next_pid;
         bool equal;
         bool forward;
+        bool has_next;
         KeyType key;
         const BWTree &bwTree;
       public:
