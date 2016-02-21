@@ -123,8 +123,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Search(
-  KeyType target,
-  bool forward)
+  __attribute__((unused)) KeyType target,
+  __attribute__((unused)) bool forward)
 {
   assert(!this->items.empty());
 
@@ -134,19 +134,25 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(
-  __attribute__((unused)) KeyType target,
-  __attribute__((unused)) bool upwards)
+  KeyType target,
+  bool forward)
 {
-  return nullptr;
-}
+  if (Node::bwTree.key_equals(target, this->info.first)) {
+    return this;
+  }
+  return this->next->Search(target, forward);
+};
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(
-  __attribute__((unused)) KeyType target,
-  __attribute__((unused)) bool upwards)
+  KeyType target,
+  bool forward)
 {
-  return nullptr;
+  if (Node::bwTree.key_equals(target, this->info.first)) {
+    return this;
+  }
+  return this->next->Search(target, forward);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
