@@ -54,12 +54,85 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DeleteE
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
-    __attribute__((unused)) const std::vector<Value> &values,
-    __attribute__((unused)) const std::vector<oid_t> &key_column_ids,
-    __attribute__((unused)) const std::vector<ExpressionType> &expr_types,
-    __attribute__((unused)) const ScanDirectionType& scan_direction) {
+    const std::vector<Value> &values,
+    const std::vector<oid_t> &key_column_ids,
+    const std::vector<ExpressionType> &expr_types,
+    const ScanDirectionType& scan_direction) {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  KeyType index_key;
+
+  // Check if we have leading (leftmost) column equality
+  // refer : http://www.postgresql.org/docs/8.2/static/indexes-multicolumn.html
+  oid_t leading_column_id = 0;
+  auto key_column_ids_itr = std::find(
+    key_column_ids.begin(), key_column_ids.end(), leading_column_id);
+
+  // SPECIAL CASE : leading column id is one of the key column ids
+  // and is involved in a equality constraint
+  bool special_case = false;
+  if (key_column_ids_itr != key_column_ids.end()) {
+    auto offset = std::distance(key_column_ids.begin(), key_column_ids_itr);
+    if (expr_types[offset] == EXPRESSION_TYPE_COMPARE_EQUAL) {
+      special_case = true;
+    }
+  }
+
+  LOG_TRACE("Special case : %d ", special_case);
+
+  std::unique_ptr<storage::Tuple> start_key;
+  bool all_constraints_are_equal = false;
+
+  // If it is a special case, we can figure out the range to scan in the index
+  if (special_case == true) {
+
+    start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
+    index_key.SetFromKey(start_key.get());
+
+    // Construct the lower bound key tuple
+    all_constraints_are_equal =
+      ConstructLowerBoundTuple(start_key.get(), values, key_column_ids, expr_types);
+    LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
+
+  } else {
+    index_key = std::numeric_limits<KeyType>::min();
+  }
+
+  switch(scan_direction){
+    case SCAN_DIRECTION_TYPE_FORWARD:
+    case SCAN_DIRECTION_TYPE_BACKWARD: {
+      // TODO: implement backward scanner
+      auto scanner_itr = container.Scan(index_key, true, false);
+      // Scan the index entries in forward direction
+//      for (auto scan_itr = scan_begin_itr; scan_itr != container.end(); scan_itr++) {
+      while (scanner_itr.get()->HasNext()) {
+        auto kv_pair = scanner_itr.get()->GetNext();
+        auto scan_current_key = kv_pair.first;
+        auto tuple = scan_current_key.GetTupleForComparison(metadata->GetKeySchema());
+
+        // Compare the current key in the scan with "values" based on "expression types"
+        // For instance, "5" EXPR_GREATER_THAN "2" is true
+        if (Compare(tuple, key_column_ids, expr_types, values) == true) {
+          ItemPointer location = kv_pair.second;
+          result.push_back(location);
+        }
+        else {
+          // We can stop scanning if we know that all constraints are equal
+          if(all_constraints_are_equal == true) {
+            break;
+          }
+        }
+      }
+
+    }
+      break;
+
+    case SCAN_DIRECTION_TYPE_INVALID:
+    default:
+      throw Exception("Invalid scan direction \n");
+      break;
+  }
+
+
   return result;
 }
 
@@ -67,7 +140,14 @@ template <typename KeyType, typename ValueType, class KeyComparator, class KeyEq
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys() {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  // TODO: check if std::numeric_limits work
+  KeyType begin_key = std::numeric_limits<KeyType>::min();
+
+  auto scanner_ptr = container.Scan(begin_key, true, false);
+  while (scanner_ptr.get()->HasNext()) {
+    result.push_back(scanner_ptr.get()->GetNext().second);
+  }
+
   return result;
 }
 
@@ -76,10 +156,15 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys(
  */
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 std::vector<ItemPointer>
-BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(
-    __attribute__((unused)) const storage::Tuple *key) {
+BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(const storage::Tuple *key) {
   std::vector<ItemPointer> result;
-  // Add your implementation here
+  KeyType index_key;
+  index_key.SetFromKey(key);
+
+  auto scanner_ptr = container.Scan(index_key, true, true);
+  while (scanner_ptr.get()->HasNext()) {
+    result.push_back(scanner_ptr.get()->GetNext().second);
+  }
   return result;
 }
 

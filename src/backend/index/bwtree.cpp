@@ -58,6 +58,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
   std::pair<KeyType, ValueType> scan_res = *iterator_cur;
+  // Use ++ may cause problem when we are using backward direction
   if (++iterator_cur == iterator_end && iterator_end == buffer_result.end() && next_pid != INVALID_PID) {
     // make new buffer
     DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
