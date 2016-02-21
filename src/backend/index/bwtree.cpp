@@ -275,11 +275,15 @@ public:
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(KeyType k,
+bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(KeyType k,
                                                                                                     ValueType v) {
   auto dt_node = node_table.GetNode(0)->Search(k, true);
-  auto ins_node = new InsertDelta(*this, k, v);
-  ins_node.
+  assert(dt_node);
+  auto old_node = node_table.GetNode(dt_node->GetPID());
+  auto ins_node = new InsertDelta(*this, k, v, (DataNode *)old_node);
+  assert(dt_node->GetPID() == old_node->GetPID());
+  ins_node->SetPID(old_node->GetPID());
+  return node_table.UpdateNode(old_node, (Node *)ins_node);
 }
 
 

@@ -44,8 +44,8 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
-      void InsertKV(KeyType k, ValueType v);
-      void DeleteKV(KeyType k, ValueType v);
+      bool InsertKV(KeyType k, ValueType v);
+      bool DeleteKV(KeyType k, ValueType v);
       BWTree() = delete;
 
     public:
