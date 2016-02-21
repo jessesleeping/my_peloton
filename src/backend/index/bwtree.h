@@ -54,10 +54,11 @@ namespace peloton {
         PID next_pid;
         bool equal;
         KeyType key;
+        const BWTree &bwTree;
       public:
         Scanner() = delete;
-        Scanner(const Scanner& scanner) = delete;
-        Scanner(KeyType k, bool eq) :key(k), equal(eq) {}
+        Scanner(const Scanner& scanner, const BWTree &bwTree_) = delete;
+        Scanner(KeyType k, bool eq);
         const KeyType &GetKey();
         const ValueType &GetValue();
         bool Next();
@@ -104,7 +105,7 @@ namespace peloton {
         friend class iterator;
 
       protected:
-        const BWTree& bwTree;
+        const BWTree &bwTree;
       private:
         //const NodeTable& node_table;
         PID pid;
