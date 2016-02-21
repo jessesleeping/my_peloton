@@ -115,6 +115,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   return table[pid].load();
 }
 
+// TODO: There must be a simple clean way to implement this
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(
@@ -152,8 +153,33 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       }
     }
   } else {
-    //TODO: implement backwards
-    return nullptr;
+    while (left < right) {
+      // Return the DataNode that contains the key which is just less than or equal to target
+      if (left+1 == right) {
+        // Look at left and right, if right.begin <= target, return right (left < right.begin <= target)
+        // Notice that right.begin is children[left].first
+        if (!Node::bwTree.key_comp(target, this->children[left].first)) {
+          next_pid = this->children[right].second;
+        } else {
+          // if right.begin > target, should return left, left.begin <= target < right
+          next_pid = this->children[left].second;
+        }
+        break;
+      }
+
+      long mid = left + (right-left) / 2;
+      auto &mid_key = this->children[mid].first;
+      if (Node::bwTree.key_equals(mid_key, target)) {
+        next_pid = this->children[mid+1].second;
+        break;
+      }
+
+      if (Node::bwTree.key_comp(target, mid_key)) {
+        right = mid;
+      } else {
+        left = mid+1;
+      }
+    }
   }
 
   assert(next_pid != INVALID_PID);
