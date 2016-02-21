@@ -60,7 +60,7 @@ const KeyType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, Val
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 const ValueType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetValue()
 {
-  return nullptr;
+  return this->buffer_result.begin()->second;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -287,10 +287,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto dnode = root->Search(k, true);
   PID pid = dnode->GetPID();
   // Construct a delete delta
-  DeleteDelta *delta = new DeleteDelta(*this, k, v);
   auto old_node = node_table.GetNode(pid);
+  DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
   // CAS into the mapping table
-  bool success = node_table.UpdateNode(old_node, static_cast<Node *>delta);
+  bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
 
   return success;
 }
