@@ -37,7 +37,9 @@ template <typename KeyType, typename ValueType, class KeyComparator, class KeyEq
 bool BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertEntry(
     __attribute__((unused)) const storage::Tuple *key, __attribute__((unused)) const ItemPointer location) {
   // Add your implementation here
-  return false;
+  KeyType index_key;
+  index_key.SetFromKey(key);
+  return container.InsertKV(index_key, location);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
