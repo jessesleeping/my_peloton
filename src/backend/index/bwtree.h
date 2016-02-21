@@ -59,10 +59,11 @@ namespace peloton {
         PID next_pid;
         bool equal;
         KeyType key;
+        const BWTree &bwTree;
       public:
         Scanner() = delete;
         Scanner(const Scanner& scanner) = delete;
-        Scanner(KeyType k, bool eq) :key(k), equal(eq) {}
+        Scanner(KeyType k, bool eq, const BWTree &bwTree_);
         const KeyType &GetKey();
         const ValueType &GetValue();
         bool Next();
@@ -109,7 +110,7 @@ namespace peloton {
         friend class iterator;
 
       protected:
-        const BWTree& bwTree;
+        const BWTree &bwTree;
       private:
         //const NodeTable& node_table;
         PID pid;
@@ -181,7 +182,7 @@ namespace peloton {
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : protected DataNode {
       public:
-        InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v): DataNode(bwTree_), next(nullptr),
+        InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) {};
         PID Buffer(BufferResult &result, bool upwards);
         DataNode *Search(KeyType target, bool upwards);
@@ -193,7 +194,7 @@ namespace peloton {
       /** @brief Class for Delete Delta node */
       class DeleteDelta : protected DataNode {
       public:
-        DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v): DataNode(bwTree_), next(nullptr),
+        DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) {};
         PID Buffer(BufferResult &result, bool upwards);
         DataNode *Search(KeyType target, bool upwards);
