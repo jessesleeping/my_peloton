@@ -14,6 +14,7 @@
 #include <vector>
 #include <atomic>
 #include <map>
+#include <memory>
 #include "backend/common/types.h"
 // #include "backend/common/platform.h"
 
@@ -30,8 +31,14 @@ namespace peloton {
 // similar like stx_btree (return a iterator to the sorted buffer);
 
     /** BWTREE CLASS **/
-    class DataNode;
-    class InnerNode;
+    private:
+      class DataNode;
+      class InnerNode;
+      class Node;
+
+    public:
+      class Scanner;
+
     friend class InnerNode;
     /** BWTREE CLASS **/
     public:
@@ -44,10 +51,14 @@ namespace peloton {
 
     public:
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
-      bool InsertKV(const KeyType &k, const ValueType &v);
-      bool DeleteKV(const KeyType &k, const ValueType &v);
       BWTree() = delete;
 
+      /** @brief Insert a key/val pair from the bwtree */
+      bool InsertKV(const KeyType &k, const ValueType &v);
+      /** @brief Delete a key/val pair from the bwtree */
+      bool DeleteKV(const KeyType &k, const ValueType &v);
+      /** @brief Scan the BwTree given a key and direction */
+      std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
     public:
       class Scanner {
       private:
@@ -68,7 +79,6 @@ namespace peloton {
       };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
-      class Node;
 
       class NodeTable {
       private:
@@ -123,25 +133,13 @@ namespace peloton {
 
         /**
          * @brief Search a key in the bwtree, if upwards is true, return the first DataNode that has the key that is
-         * larger than target.
+         * JUST larger than target. if upwards is false, find the DataNode that has the key which is JUST less than
+         * the target.
          * @param target Key to find
          * @param upwards Search direction
-         * @return The first DataNode that contains the key
+         * @return The first DataNode that contains the key according to search direction
          */
         virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
-
-//        /**
-//         * @brief Scan the bwtree given a lower_bound on the key. Notice that this function will only
-//         * @param lower_bound The lower bound of the key to be scanned from
-//         * @param equality True if only scan key equals lower_bound
-//         * @param scan_res The scan results will be in scan_res when return
-//         * @param next The next PID of the BWTree node to be scanned
-//         */
-//        virtual void ScanUp(
-//            const KeyType& lower_bound,
-//            bool equality,
-//            ScanResult &scan_res,
-//            PID &next) = 0;
       };
 
       /** @brief Class for BWTree inner node */

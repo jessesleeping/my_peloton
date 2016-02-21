@@ -75,6 +75,11 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   return true;
 }
 
+
+//==----------------------------------
+///////// MAPPING TABLE FUNCTIONS
+//==----------------------------------
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::NodeTable(size_t capacity = NODE_TABLE_DFT_CAPACITY) :
   table(capacity)
@@ -83,7 +88,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     item.store(nullptr);
   }
 }
-
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
@@ -121,6 +125,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   return table[pid].load();
 }
 
+// TODO: There must be a simple clean way to implement this
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(
@@ -158,7 +163,33 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       }
     }
   } else {
-    return nullptr;
+    while (left < right) {
+      // Return the DataNode that contains the key which is just less than or equal to target
+      if (left+1 == right) {
+        // Look at left and right, if right.begin <= target, return right (left < right.begin <= target)
+        // Notice that right.begin is children[left].first
+        if (!Node::bwTree.key_comp(target, this->children[left].first)) {
+          next_pid = this->children[right].second;
+        } else {
+          // if right.begin > target, should return left, left.begin <= target < right
+          next_pid = this->children[left].second;
+        }
+        break;
+      }
+
+      long mid = left + (right-left) / 2;
+      auto &mid_key = this->children[mid].first;
+      if (Node::bwTree.key_equals(mid_key, target)) {
+        next_pid = this->children[mid+1].second;
+        break;
+      }
+
+      if (Node::bwTree.key_comp(target, mid_key)) {
+        right = mid;
+      } else {
+        left = mid+1;
+      }
+    }
   }
 
   assert(next_pid != INVALID_PID);
@@ -229,7 +260,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 }
 
 //==-----------------------------
-////////// BUFFER FUNCTION
+////////// BUFFER FUNCTIONS
 //==-----------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
@@ -310,6 +341,15 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   auto ins_node = new InsertDelta(*this, k, v, (DataNode *)old_node);
   assert(dt_node->GetPID() == old_node->GetPID());
   return node_table.UpdateNode(old_node, (Node *)ins_node);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scan(const KeyType &key,
+                                                                                          bool forward, bool equality)
+{
+  Scanner *scannerp = new Scanner(key, forward, equality, *this, key_comp);
+  return std::unique_ptr<Scanner>(scannerp);
 }
 
 // Explicit template instantiation
