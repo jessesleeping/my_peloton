@@ -37,7 +37,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp):
   buffer_result(kcmp),
-  iterators(),
+  iterator_cur(),
+  iterator_end(),
   next_pid(),
   equal(eq),
   forward(fw),
@@ -46,25 +47,32 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 {
   DataNode *node = bwTree.node_table.GetNode(0)->Search(key, forward);
   next_pid = node->Buffer(buffer_result, forward);
-  iterators = buffer_result.equal_range(key);
+  auto iterator_pair = buffer_result.equal_range(key);
+  iterator_cur = iterator_pair.first;
+  iterator_end = iterator_pair.second;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-const KeyType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetKey()
+const std::pair<KeyType, ValueType> &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
-  return key;
+
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-const ValueType &BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetValue()
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::HasNext()
 {
-  return *iterators.first;
-}
-
-template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Next()
-{
-  return false;
+  if (equal) {
+    // Scan a single key
+    if (iterator_cur == iterator_end) {
+      return false;
+    }
+  } else {
+    // Scan from a key
+    if (next_pid == INVALID_PID) {
+      return false;
+    }
+  }
+  return true;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>

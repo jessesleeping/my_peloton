@@ -52,7 +52,8 @@ namespace peloton {
       class Scanner {
       private:
         BufferResult buffer_result;
-        std::pair<typename BufferResult::iterator, typename BufferResult::iterator> iterators;
+        typename BufferResult::iterator iterator_cur;
+        typename BufferResult::iterator iterator_end;
         PID next_pid;
         bool equal;
         bool forward;
@@ -62,9 +63,8 @@ namespace peloton {
         Scanner() = delete;
         Scanner(const Scanner& scanner) = delete;
         Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp);
-        const KeyType &GetKey();
-        const ValueType &GetValue();
-        bool Next();
+        const std::pair<KeyType, ValueType> &getNext();
+        bool HasNext();
       };
     private:
       // Class for the node mapping table: maps a PID to a BWTree node.
