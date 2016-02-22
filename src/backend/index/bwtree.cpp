@@ -145,7 +145,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 {
   PID next_pid = INVALID_PID;
   long left = 0, right = this->children.size()-1;
-
   if (forward) {
     while (left<right) {
 
@@ -202,8 +201,11 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       }
     }
   }
-
-  assert(next_pid != INVALID_PID);
+  if(next_pid == INVALID_PID){
+    assert(this->children.size() == 1);
+    assert(Node::bwTree.key_comp(this->children.front().first, target));
+    next_pid = this->children.front().second;
+  }
   Node *next_node = Node::bwTree.node_table.GetNode(next_pid);
   return next_node->Search(target, forward);
 }
