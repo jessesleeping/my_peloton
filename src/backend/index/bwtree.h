@@ -59,6 +59,7 @@ namespace peloton {
       bool DeleteKV(const KeyType &k, const ValueType &v);
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
+      std::unique_ptr<Scanner> ScanFromBegin();
     public:
       class Scanner {
       private:
@@ -74,6 +75,7 @@ namespace peloton {
         Scanner() = delete;
         Scanner(const Scanner& scanner) = delete;
         Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp);
+        Scanner(const BWTree &bwTree_, KeyComparator kcmp);
         std::pair<KeyType, ValueType> GetNext();
         bool HasNext();
       private:
@@ -142,6 +144,7 @@ namespace peloton {
          * @return The first DataNode that contains the key according to search direction
          */
         virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
+        virtual DataNode *GetLeftMostdescendant() = 0;
       };
 
       /** @brief Class for BWTree inner node */
@@ -150,6 +153,7 @@ namespace peloton {
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
         DataNode *Search(KeyType target, bool upwards = true);
+        DataNode *GetLeftMostdescendant();
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -162,6 +166,7 @@ namespace peloton {
       private:
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
         virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
+        DataNode *GetLeftMostdescendant();
         virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
       };
 

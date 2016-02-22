@@ -81,27 +81,27 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
 
   std::unique_ptr<storage::Tuple> start_key;
   bool all_constraints_are_equal = false;
+  bool from_begin = true;
 
   // If it is a special case, we can figure out the range to scan in the index
   if (special_case == true) {
 
     start_key.reset(new storage::Tuple(metadata->GetKeySchema(), true));
     index_key.SetFromKey(start_key.get());
+    from_begin = false;
 
     // Construct the lower bound key tuple
     all_constraints_are_equal =
       ConstructLowerBoundTuple(start_key.get(), values, key_column_ids, expr_types);
     LOG_TRACE("All constraints are equal : %d ", all_constraints_are_equal);
 
-  } else {
-    index_key = std::numeric_limits<KeyType>::min();
   }
-
   switch(scan_direction){
     case SCAN_DIRECTION_TYPE_FORWARD:
     case SCAN_DIRECTION_TYPE_BACKWARD: {
       // TODO: implement backward scanner
-      auto scanner_itr = container.Scan(index_key, true, false);
+
+      auto scanner_itr = (from_begin) ? container.ScanFromBegin():container.Scan(index_key, true, false);
       // Scan the index entries in forward direction
 //      for (auto scan_itr = scan_begin_itr; scan_itr != container.end(); scan_itr++) {
       while (scanner_itr.get()->HasNext()) {
@@ -140,10 +140,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, class KeyEq
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys() {
   std::vector<ItemPointer> result;
-  // TODO: check if std::numeric_limits work
-  KeyType begin_key = std::numeric_limits<KeyType>::min();
-
-  auto scanner_ptr = container.Scan(begin_key, true, false);
+  auto scanner_ptr = container.ScanFromBegin();
   while (scanner_ptr.get()->HasNext()) {
     result.push_back(scanner_ptr.get()->GetNext().second);
   }

@@ -34,6 +34,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   root->children.emplace_back(std::make_pair(std::numeric_limits<KeyType>::max(), pid));
 }
 
+//==----------------------------------
+///////// SCANNER FUNCTIONS
+//==----------------------------------
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp):
   buffer_result(kcmp),
@@ -52,6 +56,25 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto iterators = buffer_result.equal_range(key);
   iterator_cur = iterators.first;
   iterator_end = equal ? iterators.second : buffer_result.end();
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(const BWTree &bwTree_, KeyComparator kcmp):
+  buffer_result(kcmp),
+  iterator_cur(),
+  iterator_end(),
+  next_pid(INVALID_PID),
+  equal(false),
+  forward(true),
+  key(),
+  bwTree(bwTree_)
+{
+  iterator_cur = buffer_result.end();
+  iterator_end = buffer_result.end();
+  DataNode *data_node = bwTree.node_table.GetNode(0)->GetLeftMostdescendant();
+  next_pid = data_node->Buffer(buffer_result, forward);
+  iterator_cur = buffer_result.begin();
+  iterator_end = buffer_result.end();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -157,6 +180,9 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 
 }
 
+//==----------------------------------
+///////// NODE FUNCTIONS
+//==----------------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::hasKV(
   const KeyType &t_k, const ValueType &t_v) {
@@ -204,6 +230,12 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   }
 
   return false;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::GetLeftMostdescendant() {
+  return this->bwTree.node_table.GetNode(this->children.begin()->second)->GetLeftMostdescendant();
 }
 
 // TODO: There must be a simple clean way to implement this
@@ -278,6 +310,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   }
   Node *next_node = Node::bwTree.node_table.GetNode(next_pid);
   return next_node->Search(target, forward);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode::GetLeftMostdescendant() {
+  return this;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -452,6 +490,13 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
                                                                                           bool forward, bool equality)
 {
   Scanner *scannerp = new Scanner(key, forward, equality, *this, key_comp);
+  return std::unique_ptr<Scanner>(scannerp);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ScanFromBegin(){
+  Scanner *scannerp = new Scanner(*this, key_comp);
   return std::unique_ptr<Scanner>(scannerp);
 }
 
