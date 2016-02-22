@@ -91,7 +91,22 @@ namespace peloton {
       public:
         NodeTable(size_t capacity);
         NodeTable() = delete;
-        // ~NodeTable();
+        ~NodeTable(){
+
+          for(auto& head : table){
+            Node *h = head.load();
+            if(h == nullptr){
+              continue;
+            }
+            Node *next = h->GetNext();
+            while(next){
+              delete h;
+              h = next;
+              next = next->GetNext();
+            }
+            delete h;
+          }
+        }
 
         /**
          * @brief Compare and swap an old node with new node at PID.
@@ -134,7 +149,7 @@ namespace peloton {
         void SetPID(PID pid) {this->pid = pid;};
         PID GetPID() const{ return this->pid;};
         virtual ~Node(){}
-
+        virtual Node *GetNext() const = 0;
         /**
          * @brief Search a key in the bwtree, if upwards is true, return the first DataNode that has the key that is
          * JUST larger than target. if upwards is false, find the DataNode that has the key which is JUST less than
@@ -154,6 +169,7 @@ namespace peloton {
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
         DataNode *Search(KeyType target, bool upwards = true);
         DataNode *GetLeftMostdescendant();
+        Node *GetNext() const {return nullptr;};
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
@@ -178,6 +194,7 @@ namespace peloton {
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
+        Node *GetNext() const {return nullptr;};
       private:
         PID prev;
         PID next;
@@ -192,6 +209,7 @@ namespace peloton {
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
+        Node *GetNext() const {return (Node *)next;};
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
@@ -205,6 +223,7 @@ namespace peloton {
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
+        Node *GetNext() const {return (Node *)next;};
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
