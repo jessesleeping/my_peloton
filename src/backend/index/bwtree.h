@@ -98,7 +98,7 @@ namespace peloton {
          * @return true when the CAS operation success, i.e. the old_node is still the value for PID.
          *         false otherwise.
          */
-        bool UpdateNode(Node *old_node, Node *new_node);
+        bool UpdateNode(Node * old_node, Node *new_node);
 
         /**
          * @brief Insert a node into the mapping table, allocate a new PID for the node.
@@ -162,6 +162,7 @@ namespace peloton {
       private:
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
         virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
+        virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
       };
 
       /** @brief Class for BWTree leaf node  */
@@ -171,6 +172,7 @@ namespace peloton {
         LeafNode(const BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
+        bool hasKV(const KeyType &t_k, const ValueType &t_v);
       private:
         PID prev;
         PID next;
@@ -184,6 +186,7 @@ namespace peloton {
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
+        bool hasKV(const KeyType &t_k, const ValueType &t_v);
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
@@ -193,9 +196,10 @@ namespace peloton {
       class DeleteDelta : public DataNode {
       public:
         DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
-                                                                                  info(std::make_pair(k,v)) {};
+                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); };
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards = true);
+        bool hasKV(const KeyType &t_k, const ValueType &t_v);
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;

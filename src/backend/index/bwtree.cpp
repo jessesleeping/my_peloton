@@ -101,15 +101,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node *old_node, Node *new_node)
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node * old_node, Node *new_node)
 {
   assert(old_node);
   assert(new_node);
   assert(old_node->GetPID() == new_node->GetPID());
-  auto &item = table[old_node->pid];
-
-  // set new node 's pid ??
-  return item.compare_exchange_weak(old_node, new_node);
+  return table[old_node->pid].compare_exchange_strong(old_node, new_node);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -134,6 +131,79 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   assert(pid < table.capacity());
 
   return table[pid].load();
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::hasKV(
+  const KeyType &t_k, const ValueType &t_v) {
+  if(Node::bwTree.key_equals(t_k, info.first) &&
+    Node::bwTree.val_equals(t_v, info.second)){
+    return true;
+  }
+
+  return next->hasKV(t_k, t_v);
+
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::hasKV(
+  const KeyType &t_k, const ValueType &t_v) {
+  if(Node::bwTree.key_equals(t_k, info.first) &&
+     Node::bwTree.val_equals(t_v, info.second)){
+    return false;
+  }
+
+  return next->hasKV(t_k, t_v);
+
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::hasKV(
+  const KeyType &t_k, const ValueType &t_v) {
+
+  if(items.empty()){
+    return false;
+  }
+  size_t b = 0, e = items.size() - 1;
+  size_t m = 0;
+  while(b < e){
+    m = b + (e - b) / 2;
+    auto &k = items[m].first;
+    if(Node::bwTree.key_equals(k, t_k)){
+      break;
+    }else if(Node::bwTree.key_comp(k, t_k)){
+      // k < t_k
+      b = ++m;
+    }else{
+      // k > t_k
+      e = --m;
+    }
+  }
+
+
+  for(auto i = m; i < items.size(); i++){
+    auto &k = items[i].first;
+    if(!Node::bwTree.key_equals(k, t_k)){
+      break;
+    }
+    auto &v = items[i].second;
+    if(Node::bwTree.val_equals(v, t_v)){
+      return true;
+    }
+  }
+
+  for(auto i = m; i >= 0; i--){
+    auto &k = items[i].first;
+    if(!Node::bwTree.key_equals(k, t_k)){
+      break;
+    }
+    auto &v = items[i].second;
+    if(Node::bwTree.val_equals(v, t_v)){
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // TODO: There must be a simple clean way to implement this
@@ -293,11 +363,12 @@ BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChec
 
   // apply delete
   auto searchRes = result.equal_range(info.first);
-  for(auto itr = searchRes.first; itr != searchRes.second; itr++){
+  for(auto itr = searchRes.first; itr != searchRes.second; ){
     if(Node::bwTree.val_equals(info.second, itr->second)){
       // erase free the memory of itr???
-      result.erase(itr);
-      break;
+      itr = result.erase(itr);
+    }else{
+      itr++;
     }
   }
 
@@ -337,23 +408,42 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto dnode = root->Search(k, true);
   PID pid = dnode->GetPID();
   // Construct a delete delta
-  auto old_node = node_table.GetNode(pid);
-  DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
-  // CAS into the mapping table
-  bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
-
-  return success;
+  for(;;) {
+    Node* old_node = node_table.GetNode(pid);
+    assert(old_node == node_table.GetNode(pid));
+    DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
+    // CAS into the mapping table
+    bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
+    if(!success){
+      printf("delete fail\n");
+      delete delta;
+    }else{
+      return true;
+    }
+  }
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v) {
   auto dt_node = node_table.GetNode(0)->Search(k, true);
+  /*
+  if(dt_node->hasKV(k, v)){
+    //printf("dup kv\n");
+    return true;
+  }*/
   assert(dt_node);
-  auto old_node = node_table.GetNode(dt_node->GetPID());
-  auto ins_node = new InsertDelta(*this, k, v, (DataNode *)old_node);
-  assert(dt_node->GetPID() == old_node->GetPID());
-  return node_table.UpdateNode(old_node, (Node *)ins_node);
+  for(;;) {
+    auto old_node = node_table.GetNode(dt_node->GetPID());
+    auto ins_node = new InsertDelta(*this, k, v, (DataNode *) old_node);
+    assert(dt_node->GetPID() == old_node->GetPID());
+    bool res = node_table.UpdateNode(old_node, (Node *) ins_node);
+    if(!res){
+      delete ins_node;
+    }else{
+      return true;
+    }
+  }
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
