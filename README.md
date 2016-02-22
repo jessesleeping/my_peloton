@@ -4,6 +4,7 @@
 
 ## TODO List
 * CKP 1 (due in 02/21/2016)
+	* [ ] **pos/neg infinity bug**
 	* [x] **implement iterator:** jiexi --> change to `Scanner`
 	* [x] **scan:** rxian + runshenz -> Change to `Search` and `Buffer`
 	* [x] **bwtree insert, delete interface:** ?? 
