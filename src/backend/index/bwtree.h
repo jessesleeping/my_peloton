@@ -158,8 +158,14 @@ namespace peloton {
          * @param upwards Search direction
          * @return The first DataNode that contains the key according to search direction
          */
-        virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
-        virtual DataNode *GetLeftMostdescendant() = 0;
+        virtual DataNode *Search(KeyType target, bool upwards, int &search_depth) = 0;
+        virtual DataNode *GetLeftMostDescendant() = 0;
+        /**
+         * @brief Consolidate a node
+         * @return The consolidated new node. The new node's memory is allocated from heap. You should
+         *  free it if you no longer use it, for example when CAS failed in node table.
+         */
+//        virtual Node *Consolidate();
       };
 
       /** @brief Class for BWTree inner node */
@@ -167,8 +173,8 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
-        DataNode *Search(KeyType target, bool upwards = true);
-        DataNode *GetLeftMostdescendant();
+        DataNode *Search(KeyType target, bool upwards, int &search_depth);
+        DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
       private:
         PID right_pid;
@@ -181,8 +187,8 @@ namespace peloton {
         DataNode(const BWTree &bwTree_) : Node(bwTree_){};
       private:
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
-        virtual DataNode *Search(KeyType target, bool upwards = true) = 0;
-        DataNode *GetLeftMostdescendant();
+        virtual DataNode *Search(KeyType target, bool upwards, int &search_depth) = 0;
+        DataNode *GetLeftMostDescendant();
         virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
       };
 
@@ -192,7 +198,7 @@ namespace peloton {
       public:
         LeafNode(const BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
         PID Buffer(BufferResult &result, bool upwards = true);
-        DataNode *Search(KeyType target, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards, int &search_depth);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
         Node *GetNext() const {return nullptr;};
       private:
@@ -207,7 +213,7 @@ namespace peloton {
         InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());};
         PID Buffer(BufferResult &result, bool upwards = true);
-        DataNode *Search(KeyType target, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards, int &search_depth);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
         Node *GetNext() const {return (Node *)next;};
       private:
@@ -221,7 +227,7 @@ namespace peloton {
         DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); };
         PID Buffer(BufferResult &result, bool upwards = true);
-        DataNode *Search(KeyType target, bool upwards = true);
+        DataNode *Search(KeyType target, bool upwards, int &search_depth);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
         Node *GetNext() const {return (Node *)next;};
       private:
