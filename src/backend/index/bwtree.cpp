@@ -54,7 +54,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   DataNode *data_node = bwTree.node_table.GetNode(0)->Search(key, forward);
   next_pid = data_node->Buffer(buffer_result, forward);
   // Check if we need consolidate
-  if (data_node->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+  if (data_node->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
     bwTree.ConsolidateDataNode(data_node, buffer_result);
   }
   auto iterators = buffer_result.equal_range(key);
@@ -77,7 +77,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.end();
   DataNode *data_node = bwTree.node_table.GetNode(0)->GetLeftMostDescendant();
   next_pid = data_node->Buffer(buffer_result, forward);
-  if (data_node->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+  if (data_node->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
     bwTree.ConsolidateDataNode(data_node, buffer_result);
   }
   iterator_cur = buffer_result.begin();
@@ -482,7 +482,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       delete delta;
     }else{
       // Check if we need consolidate
-      if (delta->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+      if (delta->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
         BufferResult buffer_result(key_comp);
         delta->Buffer(buffer_result, true);
         ConsolidateDataNode(delta, buffer_result);
@@ -512,7 +512,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       delete delta;
     }else{
       // Check if we need consolidate
-      if (delta->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+      if (delta->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
         BufferResult buffer_result(key_comp);
         delta->Buffer(buffer_result, true);
         ConsolidateDataNode(delta, buffer_result);

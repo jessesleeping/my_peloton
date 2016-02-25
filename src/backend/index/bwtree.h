@@ -221,7 +221,7 @@ namespace peloton {
       class InsertDelta : public DataNode {
       public:
         InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
-                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); SetDepth(next_->GetDepth()+1);};
+                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); Node::SetDepth(next->Node::GetDepth()+1);};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
@@ -235,7 +235,7 @@ namespace peloton {
       class DeleteDelta : public DataNode {
       public:
         DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
-                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());SetDepth(next_->GetDepth()+1);};
+                                                                                  info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
