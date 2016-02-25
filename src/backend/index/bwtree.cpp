@@ -39,7 +39,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 //==----------------------------------
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp):
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, BWTree &bwTree_, KeyComparator kcmp):
   buffer_result(kcmp),
   iterator_cur(),
   iterator_end(),
@@ -54,13 +54,17 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   int search_depth = 0;
   DataNode *data_node = bwTree.node_table.GetNode(0)->Search(key, forward, search_depth);
   next_pid = data_node->Buffer(buffer_result, forward);
+  // Check if we need consolidate
+  if (search_depth > DATA_DELTA_CHAIN_LIMIT) {
+    bwTree.ConsolidateDataNode(data_node, buffer_result);
+  }
   auto iterators = buffer_result.equal_range(key);
   iterator_cur = iterators.first;
   iterator_end = equal ? iterators.second : buffer_result.end();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(const BWTree &bwTree_, KeyComparator kcmp):
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(BWTree &bwTree_, KeyComparator kcmp):
   buffer_result(kcmp),
   iterator_cur(),
   iterator_end(),
@@ -74,6 +78,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.end();
   DataNode *data_node = bwTree.node_table.GetNode(0)->GetLeftMostDescendant();
   next_pid = data_node->Buffer(buffer_result, forward);
+  // TODO: Consolidate here
   iterator_cur = buffer_result.begin();
   iterator_end = buffer_result.end();
 }
@@ -375,6 +380,31 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   }
   return this->next->Search(target, forward, search_depth);
 }
+
+//==-----------------------------
+////////// CONSOLIDATE FUNCTIONS
+//==-----------------------------
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::ConsolidateDataNode(
+  DataNode *node, const BufferResult &buffer)
+{
+    LeafNode *new_leaf_ptr = new LeafNode(*this);
+    new_leaf_ptr->prev = node->base_page->prev;
+    new_leaf_ptr->next = node->base_page->next;
+    for (auto kv_pair : buffer) {
+      new_leaf_ptr->items.emplace_back(kv_pair.first, kv_pair.second);
+    }
+
+    // Try to install and free the old page
+    bool res = node_table.UpdateNode(node, reinterpret_cast<Node*>(new_leaf_ptr));
+    if (!res) {
+      // CAS failed, free the new leaf node
+      delete new_leaf_ptr;
+    } else {
+      // TODO: CAS success, add the old node to GC epoch
+    }
+}
+
 
 //==-----------------------------
 ////////// BUFFER FUNCTIONS

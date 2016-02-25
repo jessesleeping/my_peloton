@@ -35,6 +35,7 @@ namespace peloton {
       class DataNode;
       class InnerNode;
       class Node;
+      class LeafNode;
 
     public:
       class Scanner;
@@ -46,6 +47,7 @@ namespace peloton {
       typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
+      const static size_t DATA_DELTA_CHAIN_LIMIT = 5;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
 
@@ -60,6 +62,9 @@ namespace peloton {
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
       std::unique_ptr<Scanner> ScanFromBegin();
+    private:
+      /** @brief Consolidate a data node given the buffer */
+      void ConsolidateDataNode(DataNode *node, const BufferResult &buffer);
     public:
       class Scanner {
       private:
@@ -70,12 +75,12 @@ namespace peloton {
         bool equal;
         bool forward;
         KeyType key;
-        const BWTree &bwTree;
+        BWTree &bwTree;
       public:
         Scanner() = delete;
         Scanner(const Scanner& scanner) = delete;
-        Scanner(KeyType k, bool fw, bool eq, const BWTree &bwTree_, KeyComparator kcmp);
-        Scanner(const BWTree &bwTree_, KeyComparator kcmp);
+        Scanner(KeyType k, bool fw, bool eq, BWTree &bwTree_, KeyComparator kcmp);
+        Scanner(BWTree &bwTree_, KeyComparator kcmp);
         std::pair<KeyType, ValueType> GetNext();
         bool HasNext();
       private:
@@ -183,11 +188,13 @@ namespace peloton {
 
       class DataNode : public Node {
         friend class BWTree;
+      private:
+        LeafNode *base_page;
       public:
-        DataNode(const BWTree &bwTree_) : Node(bwTree_){};
+        DataNode(const BWTree &bwTree_, LeafNode *bp) : Node(bwTree_), base_page(bp){};
+        virtual DataNode *Search(KeyType target, bool upwards, int &search_depth) = 0;
       private:
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
-        virtual DataNode *Search(KeyType target, bool upwards, int &search_depth) = 0;
         DataNode *GetLeftMostDescendant();
         virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
       };
@@ -196,7 +203,7 @@ namespace peloton {
       class LeafNode : protected DataNode {
         friend class BWTree;
       public:
-        LeafNode(const BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items() {};
+        LeafNode(const BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items() {};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards, int &search_depth);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
@@ -210,7 +217,7 @@ namespace peloton {
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : protected DataNode {
       public:
-        InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
+        InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards, int &search_depth);
@@ -224,7 +231,7 @@ namespace peloton {
       /** @brief Class for Delete Delta node */
       class DeleteDelta : public DataNode {
       public:
-        DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
+        DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); };
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards, int &search_depth);
