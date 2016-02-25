@@ -151,11 +151,8 @@ namespace peloton {
       public:
         Node() = delete;
         Node(const BWTree &bwTree_)  : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
-
-        void SetPID(PID pid) {this->pid = pid;};
-        PID GetPID() const{ return this->pid;};
         virtual ~Node(){}
-        virtual Node *GetNext() const = 0;
+
         /**
          * @brief Search a key in the bwtree, if upwards is true, return the first DataNode that has the key that is
          * JUST larger than target. if upwards is false, find the DataNode that has the key which is JUST less than
@@ -166,27 +163,65 @@ namespace peloton {
          */
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
         virtual DataNode *GetLeftMostDescendant() = 0;
-        inline void SetDepth(size_t d) {depth = d;}
-        inline size_t GetDepth() const {return depth;}
+        virtual Node *GetNext() const = 0;
         /**
          * @brief Consolidate a node
          * @return The consolidated new node. The new node's memory is allocated from heap. You should
          *  free it if you no longer use it, for example when CAS failed in node table.
          */
 //        virtual Node *Consolidate();
+        inline void SetDepth(size_t d) {depth = d;}
+        inline size_t GetDepth() const {return depth;}
+        inline void SetPID(PID pid) {this->pid = pid;};
+        inline PID GetPID() const{ return this->pid;};
+      };
+
+      /** @brief Class for BWTree structure node */
+      class StructNode : public Node {
+        friend class BWTree;
+      public:
+        StructNode(const BWTree &bwTree_) : Node(bwTree_) {}
+        virtual ~StructNode(){}
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual DataNode *GetLeftMostDescendant() = 0;
+        virtual Node *GetNext() const = 0;
       };
 
       /** @brief Class for BWTree inner node */
-      class InnerNode : public Node {
+      class InnerNode : public StructNode {
         friend class BWTree;
       public:
-        InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
+        InnerNode(const BWTree &bwTree_) : StructNode(bwTree_), right_pid(INVALID_PID) {};
         DataNode *Search(KeyType target, bool upwards);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
+      };
+
+      /** @brief Class for spliting BWTree structure node */
+      // TODO: implement it
+      class StructSplitNode : public StructNode {
+        friend class BWTree;
+      public:
+        StructSplitNode(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        virtual ~StructSplitNode(){};
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual DataNode *GetLeftMostDescendant() = 0;
+        virtual Node *GetNext() const = 0;
+      };
+
+      /** @brief Class for BWTree structure separator node */
+      // TODO: implement it
+      class SeparatorNode : public StructNode {
+        friend class BWTree;
+      public:
+        SeparatorNode(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        virtual ~SeparatorNode(){}
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual DataNode *GetLeftMostDescendant() = 0;
+        virtual Node *GetNext() const = 0;
       };
 
       class DataNode : public Node {
@@ -196,10 +231,10 @@ namespace peloton {
       public:
         DataNode(const BWTree &bwTree_, LeafNode *bp) : Node(bwTree_), base_page(bp){};
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
-      private:
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
-        DataNode *GetLeftMostDescendant();
         virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
+      private:
+        DataNode *GetLeftMostDescendant();
       };
 
       /** @brief Class for BWTree leaf node  */
@@ -219,6 +254,7 @@ namespace peloton {
 
       /** @brief Class for BWTree Insert Delta node */
       class InsertDelta : public DataNode {
+        friend class BWTree;
       public:
         InsertDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID()); Node::SetDepth(next->Node::GetDepth()+1);};
@@ -233,6 +269,7 @@ namespace peloton {
 
       /** @brief Class for Delete Delta node */
       class DeleteDelta : public DataNode {
+        friend class BWTree;
       public:
         DeleteDelta(const BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
@@ -243,6 +280,21 @@ namespace peloton {
       private:
         DataNode *next;
         std::pair<KeyType, ValueType> info;
+      };
+
+      /** @brief Class for spliting data node */
+      // TODO: implement it
+      class DataSplitNode : public DataNode {
+        friend class BWTree;
+      public:
+        DataSplitNode(const BWTree &bwTree_, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
+        ~DataSplitNode() {}
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
+        virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
+      private:
+        DataNode *next;
+        // TODO: need more member
       };
 
     private:
