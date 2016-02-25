@@ -51,11 +51,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 {
   iterator_cur = buffer_result.end();
   iterator_end = buffer_result.end();
-  int search_depth = 0;
-  DataNode *data_node = bwTree.node_table.GetNode(0)->Search(key, forward, search_depth);
+  DataNode *data_node = bwTree.node_table.GetNode(0)->Search(key, forward);
   next_pid = data_node->Buffer(buffer_result, forward);
   // Check if we need consolidate
-  if (search_depth > DATA_DELTA_CHAIN_LIMIT) {
+  if (data_node->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
     bwTree.ConsolidateDataNode(data_node, buffer_result);
   }
   auto iterators = buffer_result.equal_range(key);
@@ -78,7 +77,9 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.end();
   DataNode *data_node = bwTree.node_table.GetNode(0)->GetLeftMostDescendant();
   next_pid = data_node->Buffer(buffer_result, forward);
-  // TODO: Consolidate here
+  if (data_node->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+    bwTree.ConsolidateDataNode(data_node, buffer_result);
+  }
   iterator_cur = buffer_result.begin();
   iterator_end = buffer_result.end();
 }
@@ -247,7 +248,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 // TODO: There must be a simple clean way to implement this
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(KeyType target, bool forward, int &search_depth)
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(KeyType target, bool forward)
 {
   PID next_pid = INVALID_PID;
   long left = 0, right = this->children.size()-1;
@@ -313,7 +314,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     next_pid = this->children.front().second;
   }
   Node *next_node = Node::bwTree.node_table.GetNode(next_pid);
-  return next_node->Search(target, forward, search_depth);
+  return next_node->Search(target, forward);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -325,8 +326,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Search(__attribute__((unused)) KeyType target,
-                                                                                                      __attribute__((unused)) bool forward,
-                                                                                                      __attribute__((unused)) int &search_depth)
+                                                                                                      __attribute__((unused)) bool forward)
 {
 
   /*
@@ -357,28 +357,27 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     }
   }
   */
-  search_depth = 0;
   return this;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(KeyType target, bool forward, int &search_depth)
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(KeyType target, bool forward)
 {
   if (Node::bwTree.key_equals(target, this->info.first)) {
     return this;
   }
-  return this->next->Search(target, forward, search_depth);
+  return this->next->Search(target, forward);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(KeyType target, bool forward, int &search_depth)
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(KeyType target, bool forward)
 {
   if (Node::bwTree.key_equals(target, this->info.first)) {
     return this;
   }
-  return this->next->Search(target, forward, search_depth);
+  return this->next->Search(target, forward);
 }
 
 //==-----------------------------
@@ -468,9 +467,8 @@ bool
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(const KeyType &k, const ValueType &v)
 {
   // First locate the data node to delete the key
-  int search_depth = 0;
   auto root = node_table.GetNode(0);
-  auto dnode = root->Search(k, true, search_depth);
+  auto dnode = root->Search(k, true);
   PID pid = dnode->GetPID();
   // Construct a delete delta
   for(;;) {
@@ -483,6 +481,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       printf("delete fail\n");
       delete delta;
     }else{
+      // Check if we need consolidate
+      if (delta->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+        BufferResult buffer_result(key_comp);
+        delta->Buffer(buffer_result, true);
+        ConsolidateDataNode(delta, buffer_result);
+      }
       return true;
     }
   }
@@ -492,8 +496,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v)
 {
-  int search_depth = 0;
-  auto dt_node = node_table.GetNode(0)->Search(k, true, search_depth);
+  auto dt_node = node_table.GetNode(0)->Search(k, true);
   /*
   if(dt_node->hasKV(k, v)){
     //printf("dup kv\n");
@@ -502,12 +505,18 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   assert(dt_node);
   for(;;) {
     auto old_node = node_table.GetNode(dt_node->GetPID());
-    auto ins_node = new InsertDelta(*this, k, v, (DataNode *) old_node);
+    auto delta = new InsertDelta(*this, k, v, (DataNode *) old_node);
     assert(dt_node->GetPID() == old_node->GetPID());
-    bool res = node_table.UpdateNode(old_node, (Node *) ins_node);
+    bool res = node_table.UpdateNode(old_node, (Node *) delta);
     if(!res){
-      delete ins_node;
+      delete delta;
     }else{
+      // Check if we need consolidate
+      if (delta->GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+        BufferResult buffer_result(key_comp);
+        delta->Buffer(buffer_result, true);
+        ConsolidateDataNode(delta, buffer_result);
+      }
       return true;
     }
   }
