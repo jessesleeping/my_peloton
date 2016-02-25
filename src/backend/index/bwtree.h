@@ -177,7 +177,7 @@ namespace peloton {
       };
 
       /** @brief Class for BWTree inner node */
-      class InnerNode : protected Node {
+      class InnerNode : public Node {
         friend class BWTree;
       public:
         InnerNode(const BWTree &bwTree_) : Node(bwTree_), right_pid(INVALID_PID) {};
@@ -203,7 +203,7 @@ namespace peloton {
       };
 
       /** @brief Class for BWTree leaf node  */
-      class LeafNode : protected DataNode {
+      class LeafNode : public DataNode {
         friend class BWTree;
       public:
         LeafNode(const BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items() {};
