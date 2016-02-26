@@ -48,6 +48,7 @@ namespace peloton {
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DATA_DELTA_CHAIN_LIMIT = 5;
+      const static size_t MAX_PAGE_SIZE = 512;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
 
@@ -214,11 +215,23 @@ namespace peloton {
 
       /** @brief Class for BWTree structure separator node */
       // TODO: implement it
-      class SeparatorNode : public StructNode {
+      class InnerInsertDelta : public StructNode {
         friend class BWTree;
       public:
-        SeparatorNode(const BWTree &bwTree_) : StructNode(bwTree_) {};
-        virtual ~SeparatorNode(){}
+        InnerInsertDelta(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        virtual ~InnerInsertDelta(){}
+        virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        virtual DataNode *GetLeftMostDescendant() = 0;
+        virtual Node *GetNext() const = 0;
+      };
+
+      /** @brief Class for BWTree structure separator node */
+      // TODO: implement it
+      class InnerDeleteDelta : public StructNode {
+        friend class BWTree;
+      public:
+        InnerDeleteDelta(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        virtual ~InnerDeleteDelta(){}
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
