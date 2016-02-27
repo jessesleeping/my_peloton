@@ -69,6 +69,7 @@ namespace peloton {
       struct PathState{
         std::vector<PID> pid_path;
         KeyType expected_key;
+        PID new_innder_pid;
       };
       /** @brief Consolidate a data node given the buffer */
       void ConsolidateDataNode(DataNode *node, const BufferResult &buffer);
