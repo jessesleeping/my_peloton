@@ -197,45 +197,13 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   if(items.empty()){
     return false;
   }
-  size_t b = 0, e = items.size() - 1;
-  size_t m = 0;
-  while(b < e){
-    m = b + (e - b) / 2;
-    auto &k = items[m].first;
-    if(Node::bwTree.key_equals(k, t_k)){
-      break;
-    }else if(Node::bwTree.key_comp(k, t_k)){
-      // k < t_k
-      b = ++m;
-    }else{
-      // k > t_k
-      e = --m;
-    }
-  }
 
-
-  for(auto i = m; i < items.size(); i++){
-    auto &k = items[i].first;
-    if(!Node::bwTree.key_equals(k, t_k)){
-      break;
-    }
-    auto &v = items[i].second;
-    if(Node::bwTree.val_equals(v, t_v)){
+  auto res = items.equal_range(t_k);
+  for(auto itr = res.first; itr != res.second; itr++){
+    if(Node::bwTree.val_equals(itr->second, t_v)){
       return true;
     }
   }
-
-  for(auto i = m; i >= 0; i--){
-    auto &k = items[i].first;
-    if(!Node::bwTree.key_equals(k, t_k)){
-      break;
-    }
-    auto &v = items[i].second;
-    if(Node::bwTree.val_equals(v, t_v)){
-      return true;
-    }
-  }
-
   return false;
 }
 
@@ -407,7 +375,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     new_leaf_ptr->prev = node->base_page->prev;
     new_leaf_ptr->next = node->base_page->next;
     for (auto kv_pair : buffer) {
-      new_leaf_ptr->items.emplace_back(kv_pair.first, kv_pair.second);
+      new_leaf_ptr->items.insert(kv_pair);
     }
 
     // Try to install and free the old page
@@ -458,10 +426,13 @@ BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChec
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::PID
 BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult &result, bool upwards) {
+  /*
   for(auto& item : items){
     // result.emplace(item);
     result.insert(item);
   }
+   */
+  result.insert(items.begin(), items.end());
   return upwards ? this->next : this->prev;
 }
 

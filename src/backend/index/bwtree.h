@@ -274,7 +274,7 @@ namespace peloton {
       class LeafNode : public DataNode {
         friend class BWTree;
       public:
-        LeafNode(const BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items() {};
+        LeafNode(const BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
         PID Buffer(BufferResult &result, bool upwards = true);
         DataNode *Search(KeyType target, bool upwards);
         bool hasKV(const KeyType &t_k, const ValueType &t_v);
@@ -282,7 +282,7 @@ namespace peloton {
       private:
         PID prev;
         PID next;
-        std::vector<std::pair<KeyType, ValueType> > items;
+        std::multimap<KeyType, ValueType, KeyComparator> items;
       };
 
       /** @brief Class for BWTree Insert Delta node */
@@ -336,6 +336,7 @@ namespace peloton {
       KeyEqualityChecker key_equals;
       ValueEqualityChecker val_equals;
       NodeTable node_table;
+
     };
 
   }  // End index namespace
