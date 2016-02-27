@@ -381,6 +381,22 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 }
 
 //==-----------------------------
+////////// SPLIT FUNCTIONS
+//==-----------------------------
+//template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+//bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::ChildSplitDataNode(
+//  DataNode *node) {
+//  // Collect the KV pair and find the split key
+//  BufferResult buffer_result;
+//  node->Buffer(buffer_result, true);
+//
+//  // Create a new node
+//  // Create a split delta
+//  return false;
+//}
+
+
+//==-----------------------------
 ////////// CONSOLIDATE FUNCTIONS
 //==-----------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -404,6 +420,37 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     }
 }
 
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::smo_t
+BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::ConsolidateDataNodeWithSMO(
+  DataNode *node,
+  __attribute__((unused)) PathState &state ) {
+  // TODO: unfinished
+  smo_t res;
+  LeafNode *new_leaf_ptr = new LeafNode(*this);
+  new_leaf_ptr->prev = node->base_page->prev;
+  // Create a buffer for consolidation
+  BufferResult buffer_result(key_comp);
+  // Since we may have Split/Merge node in the delta chain,
+  // new node's next pointer can be different from the base page.
+  new_leaf_ptr->next = node->Buffer(buffer_result, true);
+
+  // TODO: Try to handle unfinished split/merge
+
+  // Check if we need SMO
+  if (buffer_result.size() > MAX_PAGE_SIZE) {
+    // Do split here
+    res = SPLIT;
+  } else if (buffer_result.size() < MIN_PAGE_SIZE) {
+    // Do merge here
+    res = MERGE;
+  } else {
+    // Normal consolidate
+    res = NONE;
+  }
+
+  return res;
+}
 
 //==-----------------------------
 ////////// BUFFER FUNCTIONS

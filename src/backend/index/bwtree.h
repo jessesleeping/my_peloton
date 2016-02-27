@@ -49,6 +49,7 @@ namespace peloton {
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DATA_DELTA_CHAIN_LIMIT = 5;
       const static size_t MAX_PAGE_SIZE = 512;
+      const static size_t MIN_PAGE_SIZE = 64;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
 
@@ -64,8 +65,24 @@ namespace peloton {
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
       std::unique_ptr<Scanner> ScanFromBegin();
     private:
+      enum smo_t {NONE, SPLIT, MERGE};
+      struct PathState{
+        std::vector<PID> pid_path;
+        KeyType expected_key;
+      };
       /** @brief Consolidate a data node given the buffer */
       void ConsolidateDataNode(DataNode *node, const BufferResult &buffer);
+      /** @brief Consolidate a data node. If the size of the leaf page hit certain limits,
+       *         we perform child split/merge and return corresponding smo_t.
+       *  @return NONE if no SMO happen during consolidation. SPLIT/MERGE indicates that
+       *          parent node should attempt to finish the split/merge operation
+       */
+      smo_t ConsolidateDataNodeWithSMO(DataNode *node, PathState &state);
+
+//      /** @brief Perform a child split on a data node.
+//       *  @return true if CAS success, which means we can further perform a parent split
+//       */
+//      bool ChildSplitDataNode(DataNode *node);
     public:
       class Scanner {
       private:
@@ -186,6 +203,7 @@ namespace peloton {
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
+        // TODO: Structure node also need some kinds of .Buffer method for consolidation.
       };
 
       /** @brief Class for BWTree inner node */
@@ -244,6 +262,7 @@ namespace peloton {
       public:
         DataNode(const BWTree &bwTree_, LeafNode *bp) : Node(bwTree_), base_page(bp){};
         virtual DataNode *Search(KeyType target, bool upwards) = 0;
+        // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
         virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
       private:
