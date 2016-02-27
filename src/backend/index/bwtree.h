@@ -195,7 +195,7 @@ namespace peloton {
       public:
         StructNode(const BWTree &bwTree_) : Node(bwTree_) {}
         virtual ~StructNode(){}
-        virtual DataNode *Search(KeyType target, bool forwards) = 0;
+        virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
         virtual bool Consolidate(smo_t &smo_result) = 0;
@@ -210,7 +210,7 @@ namespace peloton {
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
-        virtual bool Consolidate(smo_t &smo_result){assert(smo_result != smo_result); return true;};
+        virtual bool Consolidate(__attribute__((unused)) smo_t &smo_result){assert(smo_result != smo_result); return true;};
       private:
         PID right_pid;
         std::vector<std::pair<KeyType, PID> > children;
