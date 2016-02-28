@@ -31,7 +31,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   LeafNode *leaf = new LeafNode(*this);
   pid = node_table.InsertNode(static_cast<Node *>(leaf));
   // Insert the leaf node as the children of the root
-  root->children.emplace_back(std::make_pair(std::numeric_limits<KeyType>::max(), pid));
+  root->children.insert(std::make_pair(MIN_KEY, pid));
 }
 
 //==----------------------------------
@@ -56,7 +56,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   DataNode *data_node = nullptr;
   next_pid = data_node->Buffer(buffer_result, forward);
   // Check if we need consolidate
-  if (data_node->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+  if (data_node->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
     bwTree.ConsolidateDataNode(data_node, buffer_result);
   }
   auto iterators = buffer_result.equal_range(key);
@@ -79,7 +79,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.end();
   DataNode *data_node = bwTree.node_table.GetNode(0)->GetLeftMostDescendant();
   next_pid = data_node->Buffer(buffer_result, forward);
-  if (data_node->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+  if (data_node->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
     bwTree.ConsolidateDataNode(data_node, buffer_result);
   }
   iterator_cur = buffer_result.begin();
@@ -212,7 +212,9 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::GetLeftMostDescendant() {
-  return this->bwTree.node_table.GetNode(this->children.begin()->second)->GetLeftMostDescendant();
+  // TODO: fix it by using min key
+  //return this->bwTree.node_table.GetNode(this->children.begin()->second)->GetLeftMostDescendant();
+  return nullptr;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -223,9 +225,42 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-  BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  return nullptr;
+  BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::
+Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
+  //return nullptr;
+  // TODO: direction
 
+  assert(!children.empty());
+  auto res = children.upper_bound(target);
+  auto next = res--;
+  Node *child = Node::bwTree.node_table.GetNode(res->second);
+
+  path_state.node_path.push_back(this);
+  path_state.pid_path.push_back(this->GetPID());
+
+  // auto old_bk = path_state.begin_key;
+  // auto old_ek = path_state.end_key;
+
+  path_state.begin_key = res->first;
+  if(next == children.end()){
+    path_state.end_key = res->first;
+    path_state.open = true;
+  }else{
+    path_state.end_key = next->first;
+    path_state.open = false;
+  }
+
+  DataNode *dt = child->Search(target, forwards, path_state);
+
+  // check consolidate
+  if(child->GetDepth() > BWTree::DELTA_CHAIN_LIMIT){
+   // TODO: consolidate
+  }
+
+  path_state.pid_path.pop_back();
+  path_state.node_path.pop_back();
+
+  return dt;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -261,7 +296,20 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructSplitDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
+  assert(Node::bwTree.key_comp(path_state.begin_key, split_key));
+
+ if(path_state.open || Node::bwTree.key_comp(split_key, path_state.end_key)){
+    // TODO: try and go
+    // begin_key < k < end_key
+    // sep: [path_state.begin_k, split_key), pid
+  }
+
+  if(Node::bwTree.key_equals(target, split_key) || Node::bwTree.key_comp(split_key, target)){
+
+  }
+
   return nullptr;
+
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -560,7 +608,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       delete delta;
     }else{
       // Check if we need consolidate
-      if (delta->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+      if (delta->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
         BufferResult buffer_result(key_comp);
         delta->Buffer(buffer_result, true);
         ConsolidateDataNode(delta, buffer_result);
@@ -592,7 +640,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       delete delta;
     }else{
       // Check if we need consolidate
-      if (delta->Node::GetDepth() > DATA_DELTA_CHAIN_LIMIT) {
+      if (delta->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
         BufferResult buffer_result(key_comp);
         delta->Buffer(buffer_result, true);
         ConsolidateDataNode(delta, buffer_result);
