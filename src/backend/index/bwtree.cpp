@@ -559,10 +559,13 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DataNode::Consolidate(
   PathState &state) {
-  DataSplitDelta *split_delta;
-  StructNode *struct_node;
-  DataNode *new_node;
-  LeafNode *new_node_from_split = nullptr;
+  DataSplitDelta *split_delta = nullptr;
+  StructNode *struct_node = nullptr;
+  DataNode *new_data_node = nullptr;
+  LeafNode *new_leaf = nullptr;
+  LeafNode *new_leaf_from_split = nullptr;
+
+  PID left_pid = INVALID_PID;
 
   BufferResult buffer_result(Node::bwTree.key_comp, state.begin_key, state.end_key);
   // get the buffer
@@ -577,7 +580,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       split_delta = dynamic_cast<DataSplitDelta *>(buffer_result.smo_node);
       assert(split_delta != nullptr);
       // try to finish the split
-      struct_node = dynamic_cast<StructNode *>(state.node_path.back());
+      assert(state.node_path.size() >= 2);
+      struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       assert(struct_node != nullptr);
       if (!Node::bwTree.InstallSeparator(struct_node, state.begin_key, split_delta->split_key, split_delta->pid)) {
         // Complete SMO failed
@@ -597,9 +601,9 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   // Check if need split/merge
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
     // Do split
-    LeafNode *new_leaf = new LeafNode(Node::bwTree);
+    new_leaf = new LeafNode(Node::bwTree);
     new_leaf->SetPID(this->GetPID());
-    new_node_from_split = new LeafNode(Node::bwTree);
+    new_leaf_from_split = new LeafNode(Node::bwTree);
 
     auto itr = buffer_result.buffer.begin();
     int i = 0;
@@ -607,30 +611,28 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
     // new node take the left half
     for (; i < half_size; ++i, ++itr) {
-      new_node_from_split->items.insert(*itr);
+      new_leaf_from_split->items.insert(*itr);
     }
 
     // get split position
     auto split_itr = itr;
 
     // old node keep the right half
-    for (; i < buffer_result.buffer.size(); ++i, ++itr) {
-      new_leaf->items.insert(*itr);
-    }
+    new_leaf->items.insert(itr, buffer_result.buffer.end());
 
     // set the new node and install it
-    new_node_from_split->prev = buffer_result.prev_pid;
-    new_node_from_split->next = this->GetPID();
-    PID left = Node::bwTree.node_table.InsertNode(new_node_from_split);
-    assert(left != INVALID_PID);
+    new_leaf_from_split->prev = buffer_result.prev_pid;
+    new_leaf_from_split->next = this->GetPID();
+    left_pid = Node::bwTree.node_table.InsertNode(new_leaf_from_split);
+    assert(left_pid != INVALID_PID);
 
     // set the old node
-    new_leaf->prev = left;
+    new_leaf->prev = left_pid;
     new_leaf->next = buffer_result.next_pid;
 
     // create a DataSplitDelta for the old node
-    split_delta = new DataSplitDelta(Node::bwTree, new_leaf, split_itr->first, left);
-    new_node = split_delta;
+    split_delta = new DataSplitDelta(Node::bwTree, new_leaf, split_itr->first, left_pid);
+    new_data_node = split_delta;
   }
 // else if (buffer_result.buffer.size() < MIN_PAGE_SIZE) {
 //    // TODO: Implement Merge
@@ -643,12 +645,19 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     new_leaf->prev = buffer_result.prev_pid;
     new_leaf->next = buffer_result.next_pid;
     new_leaf->items = buffer_result.buffer;
-    new_node = new_leaf;
+    new_data_node = new_leaf;
   }
 
   // Install the consolidated node/chain
-  if (Node::bwTree.node_table.UpdateNode(this, new_node)) {
+  if (Node::bwTree.node_table.UpdateNode(this, new_data_node)) {
     // install success
+    if (new_leaf_from_split != nullptr) {
+      // Try to install delta
+      assert(state.node_path.size() >= 2);
+      struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
+      assert(struct_node != nullptr);
+      Node::bwTree.InstallSeparator(struct_node, state.begin_key, split_delta->split_key, split_delta->pid);
+    }
     // TODO: GC the old node
   } else {
     // install failed
