@@ -22,13 +22,13 @@
 namespace peloton {
   namespace index {
 
-// Look up the stx btree interface for background.
-// peloton/third_party/stx/btree.h
+    // Look up the stx btree interface for background.
+    // peloton/third_party/stx/btree.h
     template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
     class BWTree {
-// TODO: disable default/copy constructor
-// TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
-// similar like stx_btree (return a iterator to the sorted buffer);
+    // TODO: disable default/copy constructor
+    // TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
+    // similar like stx_btree (return a iterator to the sorted buffer);
 
     /** BWTREE CLASS **/
     private:
@@ -37,6 +37,8 @@ namespace peloton {
       class Node;
       class LeafNode;
       class StructNode;
+      class StructSplitDelta;
+      class DataSplitDelta;
 
     public:
       class Scanner;
@@ -49,23 +51,9 @@ namespace peloton {
 
     public:
       typedef oid_t PID;
-//      typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
-      struct BufferResult {
-        std::multimap<KeyType, ValueType, KeyComparator> buffer;
-        PID next_pid;
-        PID prev_pid;
-        std::pair<KeyType, KeyType> key_range;
-
-        smo_t smo_type;
-        DataNode *smo_node;
-
-        typedef typename std::multimap<KeyType, ValueType, KeyComparator>::iterator iterator;
-
-        BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
-          :buffer(kcmp), next_pid(INVALID_PID), prev_pid(INVALID_PID),
-           key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
-      };
-      typedef std::map<KeyType, PID, KeyComparator> InnerRange;
+      typedef std::map<KeyType, PID, KeyComparator> RangeType;
+      typedef std::multimap<KeyType, ValueType, KeyComparator> ResultType;
+      
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DELTA_CHAIN_LIMIT = 5;
@@ -74,6 +62,22 @@ namespace peloton {
       const static size_t MIN_PAGE_SIZE = 64;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
+
+      struct BufferResult {
+        ResultType buffer;
+        PID next_pid;
+        PID prev_pid;
+        std::pair<KeyType, KeyType> key_range;
+
+        smo_t smo_type;
+        DataNode *smo_node;
+
+        typedef typename ResultType::iterator iterator;
+
+        BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
+          :buffer(kcmp), next_pid(INVALID_PID), prev_pid(INVALID_PID),
+           key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
+      };
 
     private:
       struct PathState {
@@ -101,7 +105,6 @@ namespace peloton {
        * @param root The consolidated root node to be splited
        */
       void SplitRoot(InnerNode *root);
-
     private:
       // Helper functions
       /**
@@ -209,7 +212,7 @@ namespace peloton {
 
       public:
         Node() = delete;
-        Node(BWTree &bwTree_)  : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
+        Node(BWTree &bwTree_) : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
         virtual ~Node(){}
 
         /**
@@ -238,6 +241,10 @@ namespace peloton {
       class StructNode : public Node {
         friend class BWTree;
       public:
+        typedef InnerNode             BaseNodeType;
+        typedef StructSplitDelta      SplitDeltaType;
+        typedef RangeType             ContentType;
+      public:
         StructNode(BWTree &bwTree_) : Node(bwTree_) {}
         virtual ~StructNode(){}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
@@ -261,7 +268,7 @@ namespace peloton {
       private:
         PID left_pid;
         //std::vector<std::pair<KeyType, PID> > children;
-        InnerRange children;
+        RangeType children;
       };
 
       /** @brief Class for spliting BWTree structure node */
@@ -324,6 +331,10 @@ namespace peloton {
 
       class DataNode : public Node {
         friend class BWTree;
+      public:
+        typedef LeafNode            BaseNodeType;
+        typedef DataSplitDelta      SplitDeltaType;
+        typedef ResultType ContentType;
       private:
         LeafNode *base_page;
       public:
@@ -354,7 +365,7 @@ namespace peloton {
         PID prev;
         PID next;
         // TODO: use unique ptr
-        std::multimap<KeyType, ValueType, KeyComparator> items;
+        ResultType items;
       };
 
       /** @brief Class for BWTree Insert Delta node */

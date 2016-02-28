@@ -378,79 +378,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   assert(0);
   return nullptr;
 }
-/*
-// TODO: There must be a simple clean way to implement this
-template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(KeyType target, bool forward)
-{
-  PID next_pid = INVALID_PID;
-  long left = 0, right = this->children.size()-1;
-  if (forward) {
-    while (left<right) {
-
-      if (left+1 == right) {
-        if (Node::bwTree.key_comp(target, this->children[left].first)) {
-          next_pid = this->children[left].second;
-        } else {
-          assert(Node::bwTree.key_comp(target, this->children[right].first));
-          next_pid = this->children[right].second;
-        }
-        break;
-      }
-
-      long mid = left + (right - left) / 2;
-      auto &mid_key = this->children[mid].first;
-      if (Node::bwTree.key_equals(mid_key, target)) {
-        next_pid = this->children[mid + 1].second;
-        assert(mid+1<children.size());
-        break;
-      }
-
-      if (Node::bwTree.key_comp(target, mid_key)) {
-        right = mid;
-      } else {
-        left = mid+1;
-      }
-    }
-  } else {
-    while (left < right) {
-      // Return the DataNode that contains the key which is just less than or equal to target
-      if (left+1 == right) {
-        // Look at left and right, if right.begin <= target, return right (left < right.begin <= target)
-        // Notice that right.begin is children[left].first
-        if (!Node::bwTree.key_comp(target, this->children[left].first)) {
-          next_pid = this->children[right].second;
-        } else {
-          // if right.begin > target, should return left, left.begin <= target < right
-          next_pid = this->children[left].second;
-        }
-        break;
-      }
-
-      long mid = left + (right-left) / 2;
-      auto &mid_key = this->children[mid].first;
-      if (Node::bwTree.key_equals(mid_key, target)) {
-        next_pid = this->children[mid+1].second;
-        break;
-      }
-
-      if (Node::bwTree.key_comp(target, mid_key)) {
-        right = mid;
-      } else {
-        left = mid+1;
-      }
-    }
-  }
-  if(next_pid == INVALID_PID){
-    assert(this->children.size() == 1);
-    assert(Node::bwTree.key_comp(this->children.front().first, target));
-    next_pid = this->children.front().second;
-  }
-  Node *next_node = Node::bwTree.node_table.GetNode(next_pid);
-  return next_node->Search(target, forward);
-}
-*/
 
 /*
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -831,8 +758,8 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   InnerNode *node2 = new InnerNode(*this);
   // node1 has the range [root.begin, itr)
   // node2 has the range [itr, root.end), node2 is now the old root
-  node1->children = InnerRange(root->children.begin(), itr, key_comp);
-  node2->children = InnerRange(itr, root->children.end(), key_comp);
+  node1->children = RangeType(root->children.begin(), itr, key_comp);
+  node2->children = RangeType(itr, root->children.end(), key_comp);
   node2->left_pid = root->left_pid;
   node1->left_pid = root->left_pid;
   // Store the new nodes into node_table
