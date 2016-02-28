@@ -36,6 +36,7 @@ namespace peloton {
       class InnerNode;
       class Node;
       class LeafNode;
+      class StructNode;
 
     public:
       class Scanner;
@@ -47,7 +48,7 @@ namespace peloton {
       typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DATA_DELTA_CHAIN_LIMIT = 5;
+      const static size_t DELTA_CHAIN_LIMIT = 5;
       const static size_t MAX_PAGE_SIZE = 512;
       const static size_t MIN_PAGE_SIZE = 64;
       // reference: https://gist.github.com/jeetsukumaran/307264
@@ -64,6 +65,13 @@ namespace peloton {
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
       std::unique_ptr<Scanner> ScanFromBegin();
+
+    private:
+      bool InstallSeparator(StructNode *node, KeyType key1, KeyType key2, PID new_pid) {
+        InnerInsertDelta *iid = new InnerInsertDelta(*this, key1, key2, new_pid, node);
+        return node_table.UpdateNode(node, iid);
+      }
+
     private:
       enum smo_t {NONE, SPLIT, MERGE};
       struct PathState {
@@ -72,6 +80,7 @@ namespace peloton {
 
         KeyType begin_key;
         KeyType end_key;
+        bool open;
       };
       /** @brief Consolidate a data node given the buffer */
       void ConsolidateDataNode(DataNode *node, const BufferResult &buffer);
@@ -187,6 +196,7 @@ namespace peloton {
         inline size_t GetDepth() const {return depth;}
         inline void SetPID(PID pid) {this->pid = pid;};
         inline PID GetPID() const{ return this->pid;};
+        // Add inner node insert delta
       };
 
       /** @brief Class for BWTree structure node */
@@ -206,14 +216,15 @@ namespace peloton {
       class InnerNode : public StructNode {
         friend class BWTree;
       public:
-        InnerNode(const BWTree &bwTree_) : StructNode(bwTree_), right_pid(INVALID_PID) {};
+        InnerNode(const BWTree &bwTree_) : StructNode(bwTree_), right_pid(INVALID_PID), children(bwTree_.key_comp) {};
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
         virtual bool Consolidate(__attribute__((unused)) smo_t &smo_result){assert(smo_result != smo_result); return true;};
       private:
         PID right_pid;
-        std::vector<std::pair<KeyType, PID> > children;
+        //std::vector<std::pair<KeyType, PID> > children;
+        std::map<KeyType, PID, KeyComparator> children;
       };
 
       /** @brief Class for spliting BWTree structure node */
@@ -225,8 +236,12 @@ namespace peloton {
         virtual ~StructSplitDelta(){};
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual DataNode *GetLeftMostDescendant() = 0;
-        virtual Node *GetNext() const = 0;
+        virtual Node *GetNext() {return this->next;};
         virtual bool Consolidate(smo_t &smo_result);
+      private:
+        KeyType split_key;
+        PID pid;
+        StructNode *next;
       };
 
       /** @brief Class for BWTree structure separator node */
@@ -234,13 +249,21 @@ namespace peloton {
       class InnerInsertDelta : public StructNode {
         friend class BWTree;
       public:
-        InnerInsertDelta(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        InnerInsertDelta(const BWTree &bwTree_, const KeyType &begin_k_, const KeyType &end_k_, PID pid_, StructNode *next_)
+          : StructNode(bwTree_), begin_k(begin_k_), end_k(end_k_), next(next_), pid(pid_) {
+          Node::SetDepth(next_->Node::GetDepth() + 1);
+        };
         virtual ~InnerInsertDelta(){}
-        virtual DataNode *GetLeftMostDescendant() = 0;
-        virtual Node *GetNext() const = 0;
+        virtual DataNode *GetLeftMostDescendant() {return nullptr;};
+        virtual Node *GetNext() const {return this->next;};
 
         virtual bool Consolidate(smo_t &smo_result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
+      private:
+        KeyType begin_k;
+        KeyType end_k;
+        StructNode *next;
+        PID pid;
       };
 
       /** @brief Class for BWTree structure separator node */
@@ -341,6 +364,8 @@ namespace peloton {
       KeyEqualityChecker key_equals;
       ValueEqualityChecker val_equals;
       NodeTable node_table;
+      KeyType MIN_KEY;
+
     };
 
   }  // End index namespace
