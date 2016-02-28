@@ -728,8 +728,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   }
   // Create a new root
   InnerNode *new_root = new InnerNode(*this);
-  new_root->children[MIN_KEY] = pid1;
-  new_root->children[split_key] = pid2;
+  new_root->children[MIN_KEY] = pid2;
   new_root->Node::SetPID(0);
   // Install the new root
   success = node_table.UpdateNode(root, new_root);
