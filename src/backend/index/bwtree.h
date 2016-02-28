@@ -36,6 +36,7 @@ namespace peloton {
       class InnerNode;
       class Node;
       class LeafNode;
+      class StructNode;
 
     public:
       class Scanner;
@@ -64,6 +65,13 @@ namespace peloton {
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
       std::unique_ptr<Scanner> ScanFromBegin();
+
+    private:
+      bool InstallSeparator(StructNode *node, KeyType key1, KeyType key2, PID new_pid) {
+        InnerInsertDelta *iid = new InnerInsertDelta(*this, key1, key2, new_pid, node);
+        return node_table.UpdateNode(node, iid);
+      }
+
     private:
       enum smo_t {NONE, SPLIT, MERGE};
       struct PathState {
@@ -188,6 +196,7 @@ namespace peloton {
         inline size_t GetDepth() const {return depth;}
         inline void SetPID(PID pid) {this->pid = pid;};
         inline PID GetPID() const{ return this->pid;};
+        // Add inner node insert delta
       };
 
       /** @brief Class for BWTree structure node */
@@ -240,10 +249,13 @@ namespace peloton {
       class InnerInsertDelta : public StructNode {
         friend class BWTree;
       public:
-        InnerInsertDelta(const BWTree &bwTree_) : StructNode(bwTree_) {};
+        InnerInsertDelta(const BWTree &bwTree_, const KeyType &begin_k_, const KeyType &end_k_, PID pid_, StructNode *next_)
+          : StructNode(bwTree_), begin_k(begin_k_), end_k(end_k_), next(next_), pid(pid_) {
+          Node::SetDepth(next_->Node::GetDepth() + 1);
+        };
         virtual ~InnerInsertDelta(){}
-        virtual DataNode *GetLeftMostDescendant() = 0;
-        virtual Node *GetNext() {return this->next;};
+        virtual DataNode *GetLeftMostDescendant() {return nullptr;};
+        virtual Node *GetNext() const {return this->next;};
 
         virtual bool Consolidate(smo_t &smo_result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
@@ -251,6 +263,7 @@ namespace peloton {
         KeyType begin_k;
         KeyType end_k;
         StructNode *next;
+        PID pid;
       };
 
       /** @brief Class for BWTree structure separator node */
