@@ -245,11 +245,11 @@ Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forw
   auto next = res--;
   Node *child = Node::bwTree.node_table.GetNode(res->second);
 
-  path_state.node_path.push_back(this);
+  path_state.node_path.push_back(Node::bwTree.node_table.GetNode(this->GetPID()));
   path_state.pid_path.push_back(this->GetPID());
 
-  // auto old_bk = path_state.begin_key;
-  // auto old_ek = path_state.end_key;
+  auto old_bk = path_state.begin_key;
+  auto old_ek = path_state.end_key;
 
   path_state.begin_key = res->first;
   if(next == children.end()){
@@ -269,14 +269,37 @@ Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forw
 
   path_state.pid_path.pop_back();
   path_state.node_path.pop_back();
-
+  path_state.begin_key = old_bk;
+  path_state.end_key = old_ek;
   return dt;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerInsertDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  return nullptr;
+  if(Node::bwTree.key_comp(target, end_k) &&
+    (Node::bwTree.key_equals(target, begin_k) || Node::bwTree.key_comp(begin_k, target))){
+    // begin_k <= target < end_k
+    path_state.node_path.push_back(Node::bwTree.node_table.GetNode(this->GetPID()));
+    path_state.pid_path.push_back(this->GetPID());
+
+    auto old_ek = path_state.end_key;
+    path_state.end_key = target;
+
+    auto child = Node::bwTree.node_table.GetNode(sep_pid);
+    auto res = child->Search(target, forwards, path_state);
+
+    if(res->GetDepth() > BWTree::DELTA_CHAIN_LIMIT){
+      // TODO: consolidate
+    }
+
+    path_state.end_key = old_ek;
+    path_state.node_path.pop_back();
+    path_state.pid_path.pop_back();
+    return res;
+  }
+
+  return next->Search(target, forwards, path_state);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -288,19 +311,27 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  return nullptr;
+  return this;
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  return nullptr;
+  if(Node::bwTree.key_equals(target, info.first)){
+    return this;
+  }
+
+  return next->Search(target, forwards, path_state);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  return nullptr;
+  if(Node::bwTree.key_equals(target, info.first)){
+    return this;
+  }
+
+  return next->Search(target, forwards, path_state);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -309,17 +340,26 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   assert(Node::bwTree.key_comp(path_state.begin_key, split_key));
 
  if(path_state.open || Node::bwTree.key_comp(split_key, path_state.end_key)){
-    // TODO: try and go
+    // try and go
     // begin_key < k < end_key
     // sep: [path_state.begin_k, split_key), pid
+   Node::bwTree.InstallSeparator((StructNode *)path_state.node_path.back(), path_state.begin_key, split_key, split_pid);
   }
 
-  if(Node::bwTree.key_equals(target, split_key) || Node::bwTree.key_comp(split_key, target)){
 
+  if(Node::bwTree.key_equals(path_state.begin_key, target) || Node::bwTree.key_comp(target, split_key)){
+    path_state.pid_path.push_back(this->GetPID());
+    path_state.node_path.push_back(Node::bwTree.node_table.GetNode(this->GetPID()));
+    auto old_ek = path_state.end_key;
+    path_state.end_key = split_key;
+    auto res = Node::bwTree.node_table.GetNode(split_pid)->Search(target, forwards, path_state);
+    path_state.pid_path.pop_back();
+    path_state.node_path.pop_back();
+    path_state.end_key = old_ek;
+    return res;
+  }else{
+    return next->Search(target, forwards, path_state);
   }
-
-  return nullptr;
-
 };
 /*
 // TODO: There must be a simple clean way to implement this
@@ -673,6 +713,57 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       return true;
     }
   }
+}
+
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::SplitRoot(InnerNode *root)
+{
+  if (root->children.size() < SPLIT_LIMIT)
+    return;
+  if (node_table.GetNode(0) != root)
+    return;
+  // First determine the separate key of the root. Find the middle key
+  auto itr = root->children.begin();
+
+  for (int middle = 0; middle < root->children.size() / 2; itr++, middle++)
+    ;
+
+  assert(itr != root->children.end());
+  KeyType split_key = itr->first;
+
+  // Make a new node with the splited data
+  InnerNode *node1 = new InnerNode(*this);
+  InnerNode *node2 = new InnerNode(*this);
+  // node1 has the range [root.begin, itr)
+  // node2 has the range [itr, root.end), node2 is now the old root
+  node1->children = InnerRange(root->children.begin(), itr, key_comp);
+  node2->children = InnerRange(itr, root->children.end(), key_comp);
+  node2->left_pid = root->left_pid;
+  node1->left_pid = root->left_pid;
+  // Store the new nodes into node_table
+  PID pid1 = node_table.InsertNode(node1);
+  PID pid2 = node_table.InsertNode(node2);
+  // Add a split delta to the old root
+  StructSplitDelta *splitDelta = new StructSplitDelta(*this, split_key, pid1, node2);
+  bool success = node_table.UpdateNode(node2, splitDelta);
+  if (!success) {
+    // TODO: GC
+    return;
+  }
+  // Create a new root
+  InnerNode *new_root = new InnerNode(*this);
+  new_root->children[MIN_KEY] = pid1;
+  new_root->children[split_key] = pid2;
+  new_root->Node::SetPID(0);
+  // Install the new root
+  success = node_table.UpdateNode(root, new_root);
+  if (!success) {
+    // TODO: GC
+    return;
+  }
+  // Add the separator delta
+  InstallSeparator(new_root, MIN_KEY, split_key, pid1);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
