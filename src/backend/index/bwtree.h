@@ -52,8 +52,8 @@ namespace peloton {
 //      typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
       struct BufferResult {
         std::multimap<KeyType, ValueType, KeyComparator> buffer;
-        PID next_pid;
-        PID prev_pid;
+//        PID next_pid;
+//        PID prev_pid;
         std::pair<KeyType, KeyType> key_range;
 
         smo_t smo_type;
@@ -62,7 +62,7 @@ namespace peloton {
         typedef typename std::multimap<KeyType, ValueType, KeyComparator>::iterator iterator;
 
         BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
-          :buffer(kcmp), next_pid(INVALID_PID), prev_pid(INVALID_PID),
+          :buffer(kcmp),/* next_pid(INVALID_PID), prev_pid(INVALID_PID),*/
            key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
       };
       typedef std::map<KeyType, PID, KeyComparator> InnerRange;

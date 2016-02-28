@@ -669,14 +669,14 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     new_leaf->items.insert(itr, buffer_result.buffer.end());
 
     // set the new node and install it
-    new_leaf_from_split->prev = buffer_result.prev_pid;
+    new_leaf_from_split->prev = base_page->prev;
     new_leaf_from_split->next = this->GetPID();
     left_pid = Node::bwTree.node_table.InsertNode(new_leaf_from_split);
     assert(left_pid != INVALID_PID);
 
     // set the old node
     new_leaf->prev = left_pid;
-    new_leaf->next = buffer_result.next_pid;
+    new_leaf->next = base_page->next;
 
     // create a DataSplitDelta for the old node
     split_delta = new DataSplitDelta(Node::bwTree, new_leaf, split_itr->first, left_pid);
@@ -687,11 +687,11 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 // }
   else {
     // Normal consolidate
-    LeafNode *new_leaf = new LeafNode(Node::bwTree);
+    new_leaf = new LeafNode(Node::bwTree);
     new_leaf->SetPID(this->GetPID());
     // TODO: may cause problem...alternative way is to use base_ptr's prev/next
-    new_leaf->prev = buffer_result.prev_pid;
-    new_leaf->next = buffer_result.next_pid;
+    new_leaf->prev = base_page->prev;
+    new_leaf->next = base_page->next;
     new_leaf->items = buffer_result.buffer;
     new_data_node = new_leaf;
   }
@@ -704,7 +704,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       assert(state.node_path.size() >= 2);
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       assert(struct_node != nullptr);
-      Node::bwTree.InstallSeparator(struct_node, state.begin_key, split_delta->split_key, split_delta->pid);
+      Node::bwTree.InstallSeparator(struct_node, buffer_result.key_range.first, split_delta->split_key, split_delta->pid);
     }
     // TODO: GC the old node
   } else {
@@ -739,9 +739,9 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   result.buffer.insert(itr, items.end());
 
   // set next and prev
-  // TODO: check if we need to handle merge/split here
-  result.next_pid = this->next;
-  result.prev_pid = this->prev;
+//  // TODO: check if we need to handle merge/split here
+//  result.next_pid = this->next;
+//  result.prev_pid = this->prev;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -782,8 +782,8 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   }
 
   next->Buffer(result);
-  // Set the prev pid
-  result.prev_pid = this->pid;
+//  // Set the prev pid
+//  result.prev_pid = this->pid;
 };
 
 class ItemPointerEqualChecker {
