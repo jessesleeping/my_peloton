@@ -22,13 +22,13 @@
 namespace peloton {
   namespace index {
 
-// Look up the stx btree interface for background.
-// peloton/third_party/stx/btree.h
+    // Look up the stx btree interface for background.
+    // peloton/third_party/stx/btree.h
     template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
     class BWTree {
-// TODO: disable default/copy constructor
-// TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
-// similar like stx_btree (return a iterator to the sorted buffer);
+    // TODO: disable default/copy constructor
+    // TODO: Add a equal_range() method to BWTree for index's use. equal_range() should behave
+    // similar like stx_btree (return a iterator to the sorted buffer);
 
     /** BWTREE CLASS **/
     private:
@@ -37,6 +37,8 @@ namespace peloton {
       class Node;
       class LeafNode;
       class StructNode;
+      class StructSplitDelta;
+      class DataSplitDelta;
 
     public:
       class Scanner;
@@ -49,23 +51,9 @@ namespace peloton {
 
     public:
       typedef oid_t PID;
-//      typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
-      struct BufferResult {
-        std::multimap<KeyType, ValueType, KeyComparator> buffer;
-//        PID next_pid;
-//        PID prev_pid;
-        std::pair<KeyType, KeyType> key_range;
-
-        smo_t smo_type;
-        DataNode *smo_node;
-
-        typedef typename std::multimap<KeyType, ValueType, KeyComparator>::iterator iterator;
-
-        BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
-          :buffer(kcmp),/* next_pid(INVALID_PID), prev_pid(INVALID_PID),*/
-           key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
-      };
-      typedef std::map<KeyType, PID, KeyComparator> InnerRange;
+      typedef std::map<KeyType, PID, KeyComparator> RangeType;
+      typedef std::multimap<KeyType, ValueType, KeyComparator> ResultType;
+      
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DELTA_CHAIN_LIMIT = 5;
@@ -74,6 +62,23 @@ namespace peloton {
       const static size_t MIN_PAGE_SIZE = 64;
       // reference: https://gist.github.com/jeetsukumaran/307264
       class Iterator;
+
+      template <typename NodeType>
+      struct BufferResult {
+        typename NodeType::ContentType buffer;
+        PID next_pid;
+        PID prev_pid;
+        std::pair<KeyType, KeyType> key_range;
+
+        smo_t smo_type;
+        NodeType *smo_node;
+
+        typedef typename NodeType::ContentType::iterator iterator;
+
+        BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
+          :buffer(kcmp),/* next_pid(INVALID_PID), prev_pid(INVALID_PID),*/
+           key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
+      };
 
     private:
       struct PathState {
@@ -101,7 +106,6 @@ namespace peloton {
        * @param root The consolidated root node to be splited
        */
       void SplitRoot(InnerNode *root);
-
     private:
       // Helper functions
       /**
@@ -124,12 +128,14 @@ namespace peloton {
        *          parent node should attempt to finish the split/merge operation
        */
 //      smo_t ConsolidateDataNodeWithSMO(DataNode *node, PathState &state);
+      template <typename NodeType>
+      void Consolidate(NodeType *node, PathState &state);
     public:
       class Scanner {
       private:
-        BufferResult buffer_result;
-        typename BufferResult::iterator iterator_cur;
-        typename BufferResult::iterator iterator_end;
+        BufferResult<DataNode> buffer_result;
+        typename BufferResult<DataNode>::iterator iterator_cur;
+        typename BufferResult<DataNode>::iterator iterator_end;
         PID next_pid;
         bool equal;
         bool forward;
@@ -209,7 +215,7 @@ namespace peloton {
 
       public:
         Node() = delete;
-        Node(BWTree &bwTree_)  : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
+        Node(BWTree &bwTree_) : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
         virtual ~Node(){}
 
         /**
@@ -238,6 +244,10 @@ namespace peloton {
       class StructNode : public Node {
         friend class BWTree;
       public:
+        typedef InnerNode             BaseNodeType;
+        typedef StructSplitDelta      SplitDeltaType;
+        typedef RangeType             ContentType;
+      public:
         StructNode(BWTree &bwTree_) : Node(bwTree_) {}
         virtual ~StructNode(){}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
@@ -257,11 +267,13 @@ namespace peloton {
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
+        typename StructNode::ContentType &GetContent() {return children;};
+        void SetBrothers(PID left, __attribute__((unused)) PID right) {left_pid = left;};
 //        virtual bool Consolidate(__attribute__((unused)) smo_t &smo_result){assert(smo_result != smo_result); return true;};
       private:
         PID left_pid;
         //std::vector<std::pair<KeyType, PID> > children;
-        InnerRange children;
+        RangeType children;
       };
 
       /** @brief Class for spliting BWTree structure node */
@@ -324,6 +336,10 @@ namespace peloton {
 
       class DataNode : public Node {
         friend class BWTree;
+      public:
+        typedef LeafNode            BaseNodeType;
+        typedef DataSplitDelta      SplitDeltaType;
+        typedef ResultType ContentType;
       private:
         LeafNode *base_page;
       public:
@@ -331,7 +347,7 @@ namespace peloton {
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
 //        virtual PID Buffer(BufferResult &result, bool upwards = true) = 0;
-        virtual void Buffer(BufferResult &result) = 0;
+        virtual void Buffer(BufferResult<DataNode> &result) = 0;
 //        virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
 //        virtual bool Consolidate(smo_t &smo_result) = 0;
         virtual void Consolidate( PathState &state );
@@ -345,16 +361,18 @@ namespace peloton {
       public:
         LeafNode(BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
 //        PID Buffer(BufferResult &result, bool upwards = true);
-        virtual void Buffer(BufferResult &result);
+        virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
 //        bool hasKV(const KeyType &t_k, const ValueType &t_v);
         virtual Node *GetNext() const {return nullptr;};
+        typename DataNode::ContentType &GetContent() {return items;};
+        void SetBrothers(PID left, PID right) {prev = left; next = right;};
 //        virtual bool Consolidate(smo_t &smo_result);
       private:
         PID prev;
         PID next;
         // TODO: use unique ptr
-        std::multimap<KeyType, ValueType, KeyComparator> items;
+        ResultType items;
       };
 
       /** @brief Class for BWTree Insert Delta node */
@@ -367,7 +385,7 @@ namespace peloton {
           Node::SetDepth(next->Node::GetDepth()+1);
         };
 //        PID Buffer(BufferResult &result, bool upwards = true);
-        virtual void Buffer(BufferResult &result);
+        virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
 //        bool hasKV(const KeyType &t_k, const ValueType &t_v);
         virtual Node *GetNext() const {return next;};
@@ -383,7 +401,7 @@ namespace peloton {
       public:
         DeleteDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
-        virtual void Buffer(BufferResult &result);
+        virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
 //        bool hasKV(const KeyType &t_k, const ValueType &t_v);
         virtual Node *GetNext() const {return next;};
@@ -401,7 +419,7 @@ namespace peloton {
         DataSplitDelta(BWTree &bwTree_, DataNode *next_, KeyType k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         ~DataSplitDelta() {}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        virtual void Buffer(BufferResult &result);
+        virtual void Buffer(BufferResult<DataNode> &result);
         virtual Node *GetNext() const {return next;};
 //        virtual bool hasKV(const KeyType &t_k, const ValueType &t_v) = 0;
 //        virtual bool Consolidate(smo_t &smo_result);
