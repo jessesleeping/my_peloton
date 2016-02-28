@@ -46,9 +46,11 @@ namespace peloton {
     public:
       typedef oid_t PID;
       typedef std::multimap<KeyType, ValueType, KeyComparator> BufferResult;
+      typedef std::map<KeyType, PID, KeyComparator> InnerRange;
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DELTA_CHAIN_LIMIT = 5;
+      const static size_t SPLIT_LIMIT = 128;
       const static size_t MAX_PAGE_SIZE = 512;
       const static size_t MIN_PAGE_SIZE = 64;
       // reference: https://gist.github.com/jeetsukumaran/307264
@@ -65,11 +67,24 @@ namespace peloton {
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
       std::unique_ptr<Scanner> ScanFromBegin();
+      /**
+       * @brief Special case split root procedure
+       * @param root The consolidated root node to be splited
+       */
+      void SplitRoot(InnerNode *root);
 
     private:
-
-      bool InstallSeparator(StructNode *node, KeyType key1, KeyType key2, PID new_pid) {
-        InnerInsertDelta *iid = new InnerInsertDelta(*this, key1, key2, new_pid, node);
+      // Helper functions
+      /**
+       * @brief Install a separator delta to a structure node. This function will not retry install
+       *        until success.
+       * @param node        Node for which to install the separator, it should be the caller's ancestor
+       * @param begin_key   The start of the splited range
+       * @param end_key     The end of the splited range
+       * @return true the install succeed, false otherwise.
+       */
+      bool InstallSeparator(StructNode *node, KeyType begin_key, KeyType end_key, PID new_pid) {
+        InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         return node_table.UpdateNode(node, iid);
       }
 
@@ -218,15 +233,15 @@ namespace peloton {
       class InnerNode : public StructNode {
         friend class BWTree;
       public:
-        InnerNode(BWTree &bwTree_) : StructNode(bwTree_), right_pid(INVALID_PID), children(bwTree_.key_comp) { Node::SetDepth(0);};
+        InnerNode(BWTree &bwTree_) : StructNode(bwTree_), left_pid(INVALID_PID), children(bwTree_.key_comp) {};
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
         virtual bool Consolidate(__attribute__((unused)) smo_t &smo_result){assert(smo_result != smo_result); return true;};
       private:
-        PID right_pid;
+        PID left_pid;
         //std::vector<std::pair<KeyType, PID> > children;
-        std::map<KeyType, PID, KeyComparator> children;
+        InnerRange children;
       };
 
       /** @brief Class for spliting BWTree structure node */
@@ -235,11 +250,15 @@ namespace peloton {
         friend class BWTree;
       public:
         // note: set depth and Node::pid
-        StructSplitDelta(BWTree &bwTree_) : StructNode(bwTree_) {};
+        StructSplitDelta(BWTree &bwTree_, const KeyType &split_key_, PID split_pid_, StructNode *next_)
+          : StructNode(bwTree_), split_key(split_key_), split_pid(split_pid_), next(next_) {
+          this->Node::SetDepth(next_->GetDepth()+1);
+          this->Node::SetPID(next_->Node::GetPID());
+        };
         virtual ~StructSplitDelta(){};
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        virtual DataNode *GetLeftMostDescendant() = 0;
-        virtual Node *GetNext() {return this->next;};
+        virtual DataNode *GetLeftMostDescendant() { return nullptr; };
+        virtual Node *GetNext() const {return this->next;};
         virtual bool Consolidate(smo_t &smo_result);
       private:
         KeyType split_key;

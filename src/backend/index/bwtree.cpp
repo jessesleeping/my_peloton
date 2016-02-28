@@ -690,6 +690,57 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   }
 }
 
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::SplitRoot(InnerNode *root)
+{
+  if (root->children.size() < SPLIT_LIMIT)
+    return;
+  if (node_table.GetNode(0) != root)
+    return;
+  // First determine the separate key of the root. Find the middle key
+  auto itr = root->children.begin();
+
+  for (int middle = 0; middle < root->children.size() / 2; itr++, middle++)
+    ;
+
+  assert(itr != root->children.end());
+  KeyType split_key = itr->first;
+
+  // Make a new node with the splited data
+  InnerNode *node1 = new InnerNode(*this);
+  InnerNode *node2 = new InnerNode(*this);
+  // node1 has the range [root.begin, itr)
+  // node2 has the range [itr, root.end), node2 is now the old root
+  node1->children = InnerRange(root->children.begin(), itr, key_comp);
+  node2->children = InnerRange(itr, root->children.end(), key_comp);
+  node2->left_pid = root->left_pid;
+  node1->left_pid = root->left_pid;
+  // Store the new nodes into node_table
+  PID pid1 = node_table.InsertNode(node1);
+  PID pid2 = node_table.InsertNode(node2);
+  // Add a split delta to the old root
+  StructSplitDelta *splitDelta = new StructSplitDelta(*this, split_key, pid1, node2);
+  bool success = node_table.UpdateNode(node2, splitDelta);
+  if (!success) {
+    // TODO: GC
+    return;
+  }
+  // Create a new root
+  InnerNode *new_root = new InnerNode(*this);
+  new_root->children[MIN_KEY] = pid1;
+  new_root->children[split_key] = pid2;
+  new_root->Node::SetPID(0);
+  // Install the new root
+  success = node_table.UpdateNode(root, new_root);
+  if (!success) {
+    // TODO: GC
+    return;
+  }
+  // Add the separator delta
+  InstallSeparator(new_root, MIN_KEY, split_key, pid1);
+}
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scan(const KeyType &key,
