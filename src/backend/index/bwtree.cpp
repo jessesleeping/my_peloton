@@ -304,12 +304,15 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // sep: [path_state.begin_k, split_key), pid
   }
 
-  if(Node::bwTree.key_equals(target, split_key) || Node::bwTree.key_comp(split_key, target)){
 
+  if(Node::bwTree.key_equals(path_state.begin_key, target) || Node::bwTree.key_comp(target, split_key)){
+    path_state.pid_path.push_back(this->GetPID());
+    path_state.node_path.push_back(this);
+    path_state.end_key = split_key;
+    return Node::bwTree.node_table.GetNode(split_pid)->Search(target, forwards, path_state);
+  }else{
+    return next->Search(target, forwards, path_state);
   }
-
-  return nullptr;
-
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>

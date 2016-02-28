@@ -231,7 +231,7 @@ namespace peloton {
         virtual bool Consolidate(smo_t &smo_result);
       private:
         KeyType split_key;
-        PID pid;
+        PID split_pid;
         StructNode *next;
       };
 
