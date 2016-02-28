@@ -398,7 +398,7 @@ namespace peloton {
       class DataSplitDelta : public DataNode {
         friend class BWTree;
       public:
-        DataSplitDelta(BWTree &bwTree_, DataNode *next_, KeyType k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
+        DataSplitDelta(BWTree &bwTree_, DataNode *next_, KeyType k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         ~DataSplitDelta() {}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual void Buffer(BufferResult &result);
@@ -408,7 +408,7 @@ namespace peloton {
       private:
         DataNode *next;
         KeyType split_key;
-        PID pid;
+        PID split_pid;
       };
 
     private:
