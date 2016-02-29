@@ -217,7 +217,6 @@ namespace peloton {
          * @return The first DataNode that contains the key according to search direction
          */
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
-        virtual void Consolidate( PathState &state ) = 0;
 
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
@@ -242,8 +241,8 @@ namespace peloton {
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
-        // TODO: implement it
-        virtual void Consolidate( __attribute__((unused)) PathState &state ) {assert(0);};
+        virtual void Buffer(BufferResult<StructNode> &result) = 0;
+
         // TODO: Structure node also need some kinds of .Buffer method for consolidation.
       };
 
@@ -255,6 +254,7 @@ namespace peloton {
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
+        virtual void Buffer(BufferResult<StructNode> &result);
         typename StructNode::ContentType &GetContent() {return children;};
         void SetBrothers(PID left, __attribute__((unused)) PID right) {left_pid = left;};
       private:
@@ -268,12 +268,13 @@ namespace peloton {
         friend class BWTree;
       public:
         // note: set depth and Node::pid
-        StructSplitDelta(BWTree &bwTree_, const KeyType &split_key_, PID split_pid_, StructNode *next_)
+        StructSplitDelta(BWTree &bwTree_, StructNode *next_, const KeyType &split_key_, PID split_pid_)
           : StructNode(bwTree_), split_key(split_key_), split_pid(split_pid_), next(next_) {
           this->Node::SetDepth(next_->GetDepth()+1);
           this->Node::SetPID(next_->Node::GetPID());
         };
         virtual ~StructSplitDelta(){};
+        virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual DataNode *GetLeftMostDescendant() { return nullptr; };
         virtual Node *GetNext() const {return this->next;};
@@ -294,6 +295,7 @@ namespace peloton {
           Node::SetDepth(next_->Node::GetDepth() + 1);
         };
         virtual ~InnerInsertDelta(){}
+        virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *GetLeftMostDescendant() {return nullptr;};
         virtual Node *GetNext() const {return next;};
 
@@ -312,6 +314,7 @@ namespace peloton {
       public:
         InnerDeleteDelta(BWTree &bwTree_) : StructNode(bwTree_) {};
         virtual ~InnerDeleteDelta(){}
+        virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
@@ -330,7 +333,6 @@ namespace peloton {
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual void Buffer(BufferResult<DataNode> &result) = 0;
-        virtual void Consolidate( PathState &state );
       private:
         DataNode *GetLeftMostDescendant();
       };
@@ -388,7 +390,7 @@ namespace peloton {
       class DataSplitDelta : public DataNode {
         friend class BWTree;
       public:
-        DataSplitDelta(BWTree &bwTree_, DataNode *next_, KeyType k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
+        DataSplitDelta(BWTree &bwTree_, DataNode *next_, const KeyType &k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         ~DataSplitDelta() {}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual void Buffer(BufferResult<DataNode> &result);

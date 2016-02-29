@@ -233,7 +233,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     if (data_node != nullptr) {
       Node::bwTree.Consolidate<DataNode>(data_node, path_state);
     } else {
-      // TODO: call struct node's cosolidate
+      Node::bwTree.Consolidate<StructNode>(struct_node, path_state);
     }
   }
 
@@ -295,6 +295,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
+  assert(0);
   return nullptr;
 };
 
@@ -345,7 +346,9 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
     res = sibling->Search(target, forwards, path_state);
     if (sibling->Node::GetDepth() > DELTA_CHAIN_LIMIT) {
-      // TODO: DO Consolidate
+      StructNode *node = dynamic_cast<StructNode*>(sibling);
+      assert(node != nullptr);
+      Node::bwTree.Consolidate<StructNode>(node, path_state);
     }
 
   } else {
@@ -505,6 +508,56 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 ////////// BUFFER FUNCTIONS
 //==-----------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Buffer(BufferResult<StructNode> &result) {
+    auto itr = children.begin();
+    // Find the first one that is not less than key range's lower bound
+    for (; itr != children.end(); ++itr) {
+      // TODO: according to our design, the content in a splited node is always consistent, because it has been cosolidated before being splited
+      if (!Node::bwTree.key_comp(itr->first, result.key_range.first)) {
+        break;
+      }
+    }
+    assert(itr != children.end());
+    // insert to result buffer
+    result.buffer.insert(itr, children.end());
+
+    // set next and prev
+//  // TODO: check if we need to handle merge/split here
+    result.next_pid = INVALID_PID;
+    result.prev_pid = this->left_pid;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerInsertDelta::Buffer(BufferResult<StructNode> &result) {
+  next->Buffer(result);
+  // apply insert
+  result.buffer.emplace(begin_k, sep_pid);
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Buffer( __attribute__((unused)) BufferResult<StructNode> &result) {
+  assert(0);
+  return;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::StructSplitDelta::Buffer(BufferResult<StructNode> &result) {
+  // see if we observe an incomplete split
+  if (Node::bwTree.key_comp(result.key_range.first, split_key)) {
+    // key_range.first < split_key
+    assert(result.smo_type == NONE); // We can only have one SMO in the chain
+    result.smo_type = SPLIT;
+    result.smo_node = this;
+    // rearrnage key range for the following .Buffer
+    result.key_range.first = split_key;
+    // We do not buffer the PID pointed by this split delta
+  }
+  next->Buffer(result);
+  // Set the prev pid
+  result.prev_pid = this->pid;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult<DataNode> &result) {
   /*
   for(auto& item : items){
@@ -526,8 +579,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
   // set next and prev
 //  // TODO: check if we need to handle merge/split here
-//  result.next_pid = this->next;
-//  result.prev_pid = this->prev;
+  result.next_pid = this->next;
+  result.prev_pid = this->prev;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -568,8 +621,8 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   }
 
   next->Buffer(result);
-//  // Set the prev pid
-//  result.prev_pid = this->pid;
+  // Set the prev pid
+  result.prev_pid = this->pid;
 };
 
 class ItemPointerEqualChecker {
@@ -682,7 +735,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   PID pid1 = node_table.InsertNode(node1);
   PID pid2 = node_table.InsertNode(node2);
   // Add a split delta to the old root
-  StructSplitDelta *splitDelta = new StructSplitDelta(*this, split_key, pid1, node2);
+  StructSplitDelta *splitDelta = new StructSplitDelta(*this, node2, split_key, pid1);
   bool success = node_table.UpdateNode(node2, splitDelta);
   if (!success) {
     // TODO: GC
