@@ -40,6 +40,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
   min_key.SetFromKey(min_key_tuple.get());
 
   container.SetMinKey(min_key);
+  container.Init();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>

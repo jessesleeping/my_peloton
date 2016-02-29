@@ -93,6 +93,8 @@ namespace peloton {
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
       BWTree() = delete;
 
+      /** @brief Init BwTree */
+      void Init();
       /** @brief Insert a key/val pair from the bwtree */
       bool InsertKV(const KeyType &k, const ValueType &v);
       /** @brief Delete a key/val pair from the bwtree */

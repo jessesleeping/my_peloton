@@ -21,7 +21,11 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key_comp(kcp),
   key_equals(keq),
   val_equals(ValueEqualityChecker()),
-  node_table(NODE_TABLE_DFT_CAPACITY) {
+  node_table(NODE_TABLE_DFT_CAPACITY) { }
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Init()
+{
   // Create a root node
   InnerNode*root = new InnerNode(*this);
   PID pid = node_table.InsertNode(static_cast<Node *>(root));
