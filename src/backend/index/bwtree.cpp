@@ -249,7 +249,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
 
   // check consolidate
   if(child->GetDepth() > BWTree::DELTA_CHAIN_LIMIT){
-    // TODO: consolidate
+    // consolidate
     DataNode *data_node = dynamic_cast<DataNode*>(child);
     StructNode *struct_node = dynamic_cast<StructNode*>(child);
     assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
@@ -288,7 +288,15 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     res = child->Search(target, forwards, path_state);
 
     if(child->GetDepth() > BWTree::DELTA_CHAIN_LIMIT){
-      // TODO: consolidate
+      // consolidate
+      DataNode *data_node = dynamic_cast<DataNode*>(child);
+      StructNode *struct_node = dynamic_cast<StructNode*>(child);
+      assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
+      if (data_node != nullptr) {
+        Node::bwTree.Consolidate<DataNode>(data_node, path_state);
+      } else {
+        Node::bwTree.Consolidate<StructNode>(struct_node, path_state);
+      }
     }
 
 
