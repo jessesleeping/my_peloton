@@ -22,8 +22,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key_equals(keq),
   val_equals(ValueEqualityChecker()),
   node_table(NODE_TABLE_DFT_CAPACITY) {
-  // TODO: reimplement it
-  assert(0);
   // Create a root node
   InnerNode*root = new InnerNode(*this);
   PID pid = node_table.InsertNode(static_cast<Node *>(root));
