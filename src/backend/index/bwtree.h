@@ -67,16 +67,16 @@ namespace peloton {
         typename NodeType::ContentType buffer;
         PID next_pid;
         PID prev_pid;
-        std::pair<KeyType, KeyType> key_range;
+        KeyType key_lower_bound;
 
         smo_t smo_type;
         NodeType *smo_node;
 
         typedef typename NodeType::ContentType::iterator iterator;
 
-        BufferResult(KeyComparator kcmp, KeyType begin, KeyType end)
+        BufferResult(KeyComparator kcmp, KeyType begin)
           :buffer(kcmp),/* next_pid(INVALID_PID), prev_pid(INVALID_PID),*/
-           key_range(begin, end), smo_type(NONE), smo_node(nullptr) {}
+           key_lower_bound(begin), smo_type(NONE), smo_node(nullptr) {}
       };
 
     private:
@@ -122,6 +122,7 @@ namespace peloton {
       template <typename NodeType>
       void Consolidate(NodeType *node, PathState &state);
     public:
+      // TODO: refactor Scanner
       class Scanner {
       private:
         BufferResult<DataNode> buffer_result;
@@ -218,7 +219,7 @@ namespace peloton {
          */
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
 
-        virtual DataNode *GetLeftMostDescendant() = 0;
+        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
         // TODO: initialize depth in subclass
         inline void SetDepth(size_t d) {depth = d;}
@@ -239,7 +240,7 @@ namespace peloton {
         StructNode(BWTree &bwTree_) : Node(bwTree_) {}
         virtual ~StructNode(){}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
-        virtual DataNode *GetLeftMostDescendant() = 0;
+        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
         virtual void Buffer(BufferResult<StructNode> &result) = 0;
 
@@ -252,7 +253,7 @@ namespace peloton {
       public:
         InnerNode(BWTree &bwTree_) : StructNode(bwTree_), left_pid(INVALID_PID), children(bwTree_.key_comp) {};
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        DataNode *GetLeftMostDescendant();
+//        DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
         virtual void Buffer(BufferResult<StructNode> &result);
         typename StructNode::ContentType &GetContent() {return children;};
@@ -276,7 +277,7 @@ namespace peloton {
         virtual ~StructSplitDelta(){};
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        virtual DataNode *GetLeftMostDescendant() { return nullptr; };
+        //virtual DataNode *GetLeftMostDescendant() { return nullptr; };
         virtual Node *GetNext() const {return this->next;};
       private:
         KeyType split_key;
@@ -296,7 +297,7 @@ namespace peloton {
         };
         virtual ~InnerInsertDelta(){}
         virtual void Buffer(BufferResult<StructNode> &result);
-        virtual DataNode *GetLeftMostDescendant() {return nullptr;};
+        //virtual DataNode *GetLeftMostDescendant() {return nullptr;};
         virtual Node *GetNext() const {return next;};
 
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
@@ -319,7 +320,7 @@ namespace peloton {
         virtual ~InnerDeleteDelta(){}
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        virtual DataNode *GetLeftMostDescendant() = 0;
+        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() {return next;};
       private:
         StructNode *next;
@@ -337,7 +338,7 @@ namespace peloton {
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual void Buffer(BufferResult<DataNode> &result) = 0;
       private:
-        DataNode *GetLeftMostDescendant();
+        // DataNode *GetLeftMostDescendant();
       };
 
       /** @brief Class for BWTree leaf node  */
