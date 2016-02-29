@@ -312,12 +312,17 @@ namespace peloton {
       class InnerDeleteDelta : public StructNode {
         friend class BWTree;
       public:
-        InnerDeleteDelta(BWTree &bwTree_) : StructNode(bwTree_) {};
+        InnerDeleteDelta(BWTree &bwTree_, StructNode *next_) : StructNode(bwTree_) {
+            Node::SetPID(next_->GetPID());
+            Node::SetDepth(next_->Node::GetDepth() + 1);
+          };
         virtual ~InnerDeleteDelta(){}
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual DataNode *GetLeftMostDescendant() = 0;
-        virtual Node *GetNext() const = 0;
+        virtual Node *GetNext() {return next;};
+      private:
+        StructNode *next;
       };
 
       class DataNode : public Node {
@@ -326,10 +331,8 @@ namespace peloton {
         typedef LeafNode            BaseNodeType;
         typedef DataSplitDelta      SplitDeltaType;
         typedef ResultType ContentType;
-      private:
-        LeafNode *base_page;
       public:
-        DataNode(BWTree &bwTree_, LeafNode *bp) : Node(bwTree_), base_page(bp){};
+        DataNode(BWTree &bwTree_) : Node(bwTree_){};
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual void Buffer(BufferResult<DataNode> &result) = 0;
@@ -341,7 +344,7 @@ namespace peloton {
       class LeafNode : public DataNode {
         friend class BWTree;
       public:
-        LeafNode(BWTree &bwTree_) : DataNode(bwTree_, this), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
+        LeafNode(BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return nullptr;};
@@ -358,7 +361,7 @@ namespace peloton {
       class InsertDelta : public DataNode {
         friend class BWTree;
       public:
-        InsertDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
+        InsertDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) {
           Node::SetPID(next_->GetPID());
           Node::SetDepth(next->Node::GetDepth()+1);
@@ -375,7 +378,7 @@ namespace peloton {
       class DeleteDelta : public DataNode {
         friend class BWTree;
       public:
-        DeleteDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_, next_->base_page), next(next_),
+        DeleteDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
@@ -390,7 +393,7 @@ namespace peloton {
       class DataSplitDelta : public DataNode {
         friend class BWTree;
       public:
-        DataSplitDelta(BWTree &bwTree_, DataNode *next_, const KeyType &k, PID p ): DataNode(bwTree_, next_->base_page), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
+        DataSplitDelta(BWTree &bwTree_, DataNode *next_, const KeyType &k, PID p ): DataNode(bwTree_), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         ~DataSplitDelta() {}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual void Buffer(BufferResult<DataNode> &result);
