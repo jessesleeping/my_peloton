@@ -64,6 +64,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.buffer.end();
 
   DataNode *data_node = root->Search(key, forward, path_state);
+
+  // Get buffer result
   data_node->Buffer(buffer_result);
   next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
@@ -82,7 +84,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(BWTree &bwTree_, KeyComparator kcmp):
-  buffer_result(kcmp, bwTree.MIN_KEY),
+  buffer_result(kcmp, bwTree_.MIN_KEY),
   iterator_cur(),
   iterator_end(),
   next_pid(INVALID_PID),
@@ -102,6 +104,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_cur = buffer_result.buffer.end();
   iterator_end = buffer_result.buffer.end();
   DataNode *data_node = root->Search(bwTree.MIN_KEY, forward, path_state);
+
+  // Get buffer result
   data_node->Buffer(buffer_result);
   next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
