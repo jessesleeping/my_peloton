@@ -93,6 +93,8 @@ namespace peloton {
       BWTree(KeyComparator kcp, KeyEqualityChecker kec);
       BWTree() = delete;
 
+      /** @brief Init BwTree */
+      void Init();
       /** @brief Insert a key/val pair from the bwtree */
       bool InsertKV(const KeyType &k, const ValueType &v);
       /** @brief Delete a key/val pair from the bwtree */
@@ -105,6 +107,8 @@ namespace peloton {
        * @param root The consolidated root node to be splited
        */
       void SplitRoot(InnerNode *root);
+      /** @brief Used by bwtree_index to set the lowest key possible */
+      void SetMinKey(KeyType min_key) { this->MIN_KEY = min_key; }
     private:
       // Helper functions
       /**

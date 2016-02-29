@@ -26,6 +26,21 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::BWTreeIndex(
       equals(metadata),
       comparator(metadata) {
   // Add your implementation here
+  // Set min key of bwtree
+  auto schema = metadata->GetKeySchema();
+  auto col_count = schema->GetColumnCount();
+  std::unique_ptr<storage::Tuple> min_key_tuple(new storage::Tuple(metadata->GetKeySchema(), true));
+
+  for (oid_t column_itr = 0; column_itr < col_count; column_itr++) {
+    auto value_type = schema->GetType(column_itr);
+    min_key_tuple->SetValue(column_itr, Value::GetMinValue(value_type), GetPool());
+  }
+
+  KeyType min_key;
+  min_key.SetFromKey(min_key_tuple.get());
+
+  container.SetMinKey(min_key);
+  container.Init();
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
