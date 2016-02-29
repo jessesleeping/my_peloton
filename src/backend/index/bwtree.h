@@ -105,6 +105,8 @@ namespace peloton {
        * @param root The consolidated root node to be splited
        */
       void SplitRoot(InnerNode *root);
+      /** @brief Used by bwtree_index to set the lowest key possible */
+      void SetMinKey(KeyType min_key) { this->MIN_KEY = min_key; }
     private:
       // Helper functions
       /**
