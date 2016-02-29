@@ -680,16 +680,13 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(const KeyType &k, const ValueType &v)
 {
-  // TODO: implement it
-  assert(0);
-  // First locate the data node to delete the key
 
-  // TODO: new search
-  // auto root = node_table.GetNode(0);
-  //auto dnode = root->Search(k, true);
-  Node* dnode = nullptr;
-  PID pid = dnode->GetPID();
-  // Construct a delete delta
+  PathState path_state;
+  auto root = node_table.GetNode(0);
+  path_state.node_path.push_back(root);
+  path_state.begin_key = MIN_KEY;
+  auto dt_node = root->Search(k, true, path_state);
+  auto pid = dt_node->GetPID();
   for(;;) {
     Node* old_node = node_table.GetNode(pid);
     assert(old_node == node_table.GetNode(pid));
@@ -700,11 +697,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       printf("delete fail\n");
       delete delta;
     }else{
-      // Check if we need consolidate
-      if (delta->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
-//        BufferResult buffer_result(key_comp);
-//        delta->Buffer(buffer_result);
-//        ConsolidateDataNode(delta, buffer_result);
+      // try consolidate root
+      assert(path_state.node_path.size() == 1);
+      if(root->GetDepth() > DELTA_CHAIN_LIMIT){
+        Consolidate<StructNode>((StructNode *)root, path_state);
       }
       return true;
     }
@@ -715,10 +711,11 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v)
 {
-  // TODO: new search
-  assert(0);
-  //auto dt_node = node_table.GetNode(0)->Search(k, true);
-  Node* dt_node = nullptr;
+  PathState path_state;
+  auto root = node_table.GetNode(0);
+  path_state.node_path.push_back(root);
+  path_state.begin_key = MIN_KEY;
+  auto dt_node = root->Search(k, true, path_state);
   /*
   if(dt_node->hasKV(k, v)){
     //printf("dup kv\n");
@@ -733,11 +730,9 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     if(!res){
       delete delta;
     }else{
-      // Check if we need consolidate
-      if (delta->Node::GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
-//        BufferResult buffer_result(key_comp);
-//        delta->Buffer(buffer_result);
-//        ConsolidateDataNode(delta, buffer_result);
+      // try consolidate root
+      if(root->GetDepth() > DELTA_CHAIN_LIMIT){
+        Consolidate<StructNode>((StructNode *)root, path_state);
       }
       return true;
     }
