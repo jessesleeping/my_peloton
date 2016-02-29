@@ -405,6 +405,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   typename NodeType::BaseNodeType *new_base = nullptr;
   typename NodeType::BaseNodeType *new_base_from_split = nullptr;
 
+  assert(node->Node::GetDepth() > DELTA_CHAIN_LIMIT);
+
   StructNode *struct_node = nullptr;
   PID left_pid = INVALID_PID;
 
