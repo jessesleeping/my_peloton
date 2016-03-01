@@ -12,7 +12,7 @@
 
 #include "backend/index/bwtree.h"
 #include "backend/index/index_key.h"
-
+#include "backend/common/logger.h"
 namespace peloton {
 namespace index {
 
@@ -86,13 +86,13 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(BWTree &bwTree_, KeyComparator kcmp):
-  buffer_result(kcmp, bwTree.MIN_KEY),
+  buffer_result(kcmp, bwTree_.MIN_KEY),
   iterator_cur(),
   iterator_end(),
   next_pid(INVALID_PID),
   equal(false),
   forward(true),
-  key(bwTree.MIN_KEY),
+  key(bwTree_.MIN_KEY),
   bwTree(bwTree_)
 {
   PathState path_state;
@@ -106,12 +106,13 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_cur = buffer_result.buffer.end();
   iterator_end = buffer_result.buffer.end();
   DataNode *data_node = root->Search(bwTree.MIN_KEY, forward, path_state);
+  LOG_DEBUG("search get result, dept %d", (int)data_node->GetDepth());
   data_node->Buffer(buffer_result);
   next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
   // Check if root need consolidate
   if (root->GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
-    StructNode *struct_node = dynamic_cast<StructNode *>(root);
+    StructNode *struct_node = static_cast<StructNode *>(root);
     assert(struct_node != nullptr);
     // Special consolidatation
     bwTree.Consolidate<StructNode>(struct_node, path_state);
@@ -238,7 +239,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
   auto old_bk = path_state.begin_key;
   auto old_ek = path_state.end_key;
 
-  //path_state.begin_key = res->first;
+  // path_state.begin_key = res->first;
   // bk < first ? first : bk
   // get max
   path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, res->first) ? res->first : path_state.begin_key;
@@ -249,6 +250,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     path_state.open = false;
   }
 
+  LOG_DEBUG("search in innerNode, child pid %d dept %d\n", (int)child->GetPID(), (int)child->GetDepth());
   DataNode *dt = child->Search(target, forwards, path_state);
 
   // check consolidate
@@ -343,7 +345,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  if(Node::bwTree.key_equals(target, info.first)){
+  if(!Node::bwTree.key_comp(info.first, target)){
     return this;
   }
 
@@ -353,7 +355,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  if(Node::bwTree.key_equals(target, info.first)){
+  if(!Node::bwTree.key_comp(info.first, target)){
     return this;
   }
 
@@ -435,6 +437,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
+  LOG_TRACE("issue consolidate");
   typename NodeType::SplitDeltaType *split_delta = nullptr;
   NodeType *new_node = nullptr;
   typename NodeType::BaseNodeType *new_base = nullptr;
@@ -602,6 +605,14 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult<DataNode> &result) {
+  // set next and prev
+//  // TODO: check if we need to handle merge/split here
+  result.next_pid = this->next;
+  result.prev_pid = this->prev;
+
+  if(items.empty()){
+    return;
+  }
   /*
   for(auto& item : items){
     // result.emplace(item);
@@ -620,10 +631,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   // insert to result buffer
   result.buffer.insert(itr, items.end());
 
-  // set next and prev
-//  // TODO: check if we need to handle merge/split here
-  result.next_pid = this->next;
-  result.prev_pid = this->prev;
+
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -735,6 +743,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       delete delta;
     }else{
       // try consolidate root
+      LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
       if(root->GetDepth() > DELTA_CHAIN_LIMIT){
         Consolidate<StructNode>((StructNode *)root, path_state);
       }
