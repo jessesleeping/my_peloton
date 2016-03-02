@@ -113,8 +113,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   iterator_end = buffer_result.buffer.end();
   DataNode *data_node = root->Search(bwTree.MIN_KEY, forward, path_state);
 
-  // Get buffer result
-  LOG_DEBUG("search get result, dept %d", (int)data_node->GetDepth());
   data_node->Buffer(buffer_result);
   next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
@@ -405,6 +403,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
                                   path_state.begin_key,
                                   split_key,
                                   split_pid);
+  }
+  if(Node::bwTree.key_comp(target, split_key)){
     auto sibling = Node::bwTree.node_table.GetNode(split_pid);
 
     res = sibling->Search(target, forwards, path_state);
@@ -442,9 +442,18 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
                                   path_state.begin_key,
                                   split_key,
                                   split_pid);
+  }
+
+
+  if(Node::bwTree.key_comp(target, split_key)){
+    // target < split
+    // jump
     auto sibling = Node::bwTree.node_table.GetNode(split_pid);
 
+
+
     res = sibling->Search(target, forwards, path_state);
+
     if (sibling->Node::GetDepth() > DELTA_CHAIN_LIMIT) {
       DataNode *node = dynamic_cast<DataNode*>(sibling);
       assert(node != nullptr);
@@ -453,6 +462,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     }
 
   } else {
+
     // continue the seach in the original chain
     path_state.begin_key = split_key;
     res = next->Search(target, forwards, path_state);
@@ -524,7 +534,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   LOG_DEBUG("\tContinue consolidating");
 
   // Check if need split/merge
-
+  LOG_DEBUG("do consolidate, buffer size %d\n", (int)buffer_result.buffer.size());
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
     LOG_DEBUG("\tDo split");
     // Do split
@@ -764,7 +774,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     path_state.begin_key = MIN_KEY;
     auto dt_node = root->Search(k, true, path_state);
 
-    // blame on jiexi
     Node* old_node = dt_node;
     DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
     // CAS into the mapping table
@@ -805,7 +814,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       delete delta;
     }else{
       // try consolidate root
-      // LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
+      LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
       if(root->GetDepth() > DELTA_CHAIN_LIMIT){
         Consolidate<StructNode>((StructNode *)root, path_state);
       }
@@ -879,7 +888,9 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ScanFromBegin(){
   Scanner *scannerp = new Scanner(*this, key_comp);
-  return std::unique_ptr<Scanner>(scannerp);
+  assert(key_equals(MIN_KEY, MIN_KEY));
+  auto res = std::unique_ptr<Scanner>(scannerp);
+  return res;
 }
 
 
