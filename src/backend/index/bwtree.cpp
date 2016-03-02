@@ -52,6 +52,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key(k),
   bwTree(bwTree_)
 {
+  LOG_DEBUG("BEGIN SCAN");
   PathState path_state;
   // TODO: support backward scan
   assert(forward == true);
@@ -82,6 +83,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto iterators = buffer_result.buffer.equal_range(key);
   iterator_cur = iterators.first;
   iterator_end = equal ? iterators.second : buffer_result.buffer.end();
+  LOG_DEBUG("SCAN END");
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -95,6 +97,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key(bwTree_.MIN_KEY),
   bwTree(bwTree_)
 {
+  LOG_DEBUG("BEGIN SCAN");
   PathState path_state;
 
   // Initialize path_state
@@ -118,6 +121,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     bwTree.Consolidate<StructNode>(struct_node, path_state);
   }
 
+  LOG_DEBUG("END SCAN");
+
   iterator_cur = buffer_result.buffer.begin();
   iterator_end = buffer_result.buffer.end();
 }
@@ -125,12 +130,14 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
+  LOG_DEBUG("GetNext Begin");
   std::pair<KeyType, ValueType> scan_res = *iterator_cur;
   // Use ++ may cause problem when we are using backward direction
   if (++iterator_cur == iterator_end && iterator_end == buffer_result.buffer.end() && next_pid != INVALID_PID) {
     // make new buffer
     DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
     assert(data_node != NULL);
+    buffer_result.buffer.clear();
     data_node->Buffer(buffer_result);
     next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
@@ -143,6 +150,7 @@ std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqual
       iterator_end = buffer_result.buffer.end();
     }
   }
+  LOG_DEBUG("GetNext End");
   return scan_res;
 }
 
@@ -443,6 +451,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
+  LOG_DEBUG("Begin consolidate, node depth is %ld", node->GetDepth());
   if(node->Node::GetPID() == 0){
     return;
   }
@@ -461,11 +470,15 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   BufferResult<NodeType> buffer_result(this->key_comp, state.begin_key);
   node->Buffer(buffer_result);
 
+  LOG_DEBUG("Buffer result is of size %ld", buffer_result.buffer.size());
+
   // Check if we observe incomplete SMO
   switch (buffer_result.smo_type) {
     case NONE:
+      LOG_DEBUG("No undone SMO");
       break;
     case SPLIT:
+      LOG_DEBUG("Has undone SMO");
       assert(buffer_result.smo_node != nullptr);
       split_delta = dynamic_cast<typename NodeType::SplitDeltaType *>(buffer_result.smo_node);
       assert(split_delta != nullptr);
@@ -577,6 +590,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 //==-----------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Buffer(BufferResult<StructNode> &result) {
+      LOG_DEBUG("Buffer InnerNode:");
     auto itr = children.begin();
     // Find the first one that is not less than key range's lower bound
     for (; itr != children.end(); ++itr) {
@@ -627,6 +641,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::LeafNode::Buffer(BufferResult<DataNode> &result) {
+  LOG_DEBUG("Buffer LeafNode");
   // set next and prev
 //  // TODO: check if we need to handle merge/split here
   result.next_pid = this->next;
@@ -652,12 +667,12 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   assert(itr != items.end());
   // insert to result buffer
   result.buffer.insert(itr, items.end());
-
-
+  LOG_DEBUG("Buffer add %ld key", result.buffer.size());
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Buffer(BufferResult<DataNode> &result) {
+  LOG_DEBUG("Buffer delete delta");
   // buffer succeed firstly
   next->Buffer(result);
 
@@ -675,6 +690,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Buffer(BufferResult<DataNode> &result) {
+  LOG_DEBUG("Buffer InsertDelta");
   next->Buffer(result);
   // apply insert
   result.buffer.insert(info);
@@ -682,13 +698,14 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataSplitDelta::Buffer(BufferResult<DataNode> &result) {
+  LOG_DEBUG("Buffer split delta");
   // see if we observe an incomplete split
   if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
     assert(result.smo_type == NONE); // We can only have one SMO in the chain
     result.smo_type = SPLIT;
     result.smo_node = this;
-    // rearrnage key range for the following .Buffer
+    // re-arrange key range for the following .Buffer
     result.key_lower_bound = split_key;
     // We do not buffer the PID pointed by this split delta
   }
@@ -714,8 +731,6 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(const KeyType &k, const ValueType &v)
 {
-
-
   for(;;) {
     PathState path_state;
     auto root = node_table.GetNode(0);
@@ -746,7 +761,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v)
 {
-
+  LOG_DEBUG("Insert new KV");
   for(;;) {
     PathState path_state;
     auto root = node_table.GetNode(0);
