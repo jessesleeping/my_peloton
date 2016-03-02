@@ -779,7 +779,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // CAS into the mapping table
     bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
     if(!success){
-      printf("delete fail\n");
       delete delta;
     }else{
       // try consolidate root
