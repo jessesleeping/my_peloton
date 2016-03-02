@@ -180,6 +180,7 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   assert(old_node);
   assert(new_node);
   assert(old_node->GetPID() == new_node->GetPID());
+  assert(old_node->GetPID() != INVALID_PID);
   return table[old_node->pid].compare_exchange_strong(old_node, new_node);
 }
 
@@ -254,7 +255,6 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     path_state.open = false;
   }
 
-  LOG_DEBUG("search in innerNode, child pid %d dept %d\n", (int)child->GetPID(), (int)child->GetDepth());
   DataNode *dt = child->Search(target, forwards, path_state);
 
   // check consolidate
@@ -349,21 +349,23 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InsertDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  if(!Node::bwTree.key_comp(info.first, target)){
+  auto res = next->Search(target, forwards, path_state);
+  if(res->GetPID() == this->GetPID()){
     return this;
+  }else{
+    return res;
   }
-
-  return next->Search(target, forwards, path_state);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  if(!Node::bwTree.key_comp(info.first, target)){
+  auto res = next->Search(target, forwards, path_state);
+  if(res->GetPID() == this->GetPID()){
     return this;
+  }else{
+    return res;
   }
-
-  return next->Search(target, forwards, path_state);
 };
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -429,8 +431,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     }
 
   } else {
+    // continue the seach in the original chain
     path_state.begin_key = split_key;
     res = next->Search(target, forwards, path_state);
+    if(res->GetPID() == this->GetPID()){
+      res = this;
+    }
   }
 
   path_state.end_key = old_ek;
@@ -441,7 +447,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
-  LOG_TRACE("issue consolidate");
+  if(node->Node::GetPID() == 0){
+    return;
+  }
+
   typename NodeType::SplitDeltaType *split_delta = nullptr;
   NodeType *new_node = nullptr;
   typename NodeType::BaseNodeType *new_base = nullptr;
@@ -484,7 +493,9 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
   // Complete SMO success
   // Check if need split/merge
+
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
+    LOG_DEBUG("do split");
     // Do split
     // Handle root consolidate
     if (node->Node::GetPID() == 0) {
@@ -494,34 +505,44 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
     new_base = new typename NodeType::BaseNodeType(*this);
     new_base->SetPID(node->GetPID());
-    new_base_from_split = new typename NodeType::BaseNodeType(*this);
 
-    auto itr = buffer_result.buffer.begin();
+
+    auto split_itr = buffer_result.buffer.begin();
     int i = 0;
     size_t half_size = buffer_result.buffer.size()/2;
 
     // new node take the left half
-    for (; i < half_size; ++i, ++itr) {
-      new_base_from_split->GetContent().insert(*itr);
+    for (; i < half_size; ++i, ++split_itr) {
+      //new_base_from_split->GetContent().insert(*itr);
     }
 
-    // get split position
-    auto split_itr = itr;
+    split_itr = buffer_result.buffer.lower_bound(split_itr->first);
 
     // old node keep the right half
-    new_base->GetContent().insert(itr, buffer_result.buffer.end());
+    new_base->GetContent().insert(split_itr, buffer_result.buffer.end());
 
     // set the new node and install it
-    new_base_from_split->SetBrothers(buffer_result.prev_pid, node->Node::GetPID());
-    left_pid = node_table.InsertNode(new_base_from_split);
-    assert(left_pid != INVALID_PID);
+    left_pid = buffer_result.prev_pid;
+    new_node = new_base;
 
+    if(split_itr != buffer_result.buffer.begin()) {
+      new_base_from_split = new typename NodeType::BaseNodeType(*this);
+      new_base_from_split->GetContent().insert(buffer_result.buffer.begin(), split_itr);
+      new_base_from_split->SetBrothers(buffer_result.prev_pid, node->Node::GetPID());
+      left_pid = node_table.InsertNode(new_base_from_split);
+      assert(left_pid != INVALID_PID);
+      LOG_DEBUG("left pid %d size %d \t right pid %d size %d \t total size %d\n", (int) (left_pid), (int)new_base_from_split->GetContent().size(),
+                (int) new_base->GetPID(), (int)new_base->GetContent().size(),
+                (int) buffer_result.buffer.size());
+
+
+
+      // create a DataSplitDelta for the old node
+      split_delta = new typename NodeType::SplitDeltaType(*this, new_base, split_itr->first, left_pid);
+      new_node = split_delta;
+    }
     // set the old node
     new_base->SetBrothers(left_pid, buffer_result.next_pid);
-
-    // create a DataSplitDelta for the old node
-    split_delta = new typename NodeType::SplitDeltaType(*this, new_base, split_itr->first, left_pid);
-    new_node = split_delta;
   }
 // else if (buffer_result.buffer.size() < MIN_PAGE_SIZE) {
 //    // TODO: Implement Merge
@@ -543,7 +564,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       assert(state.node_path.size() >= 2);
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       assert(struct_node != nullptr);
-      InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, split_delta->pid);
+      assert(left_pid == new_base_from_split->GetPID());
+      InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
     }
     // TODO: GC the old node
   } else {
@@ -697,15 +719,16 @@ bool
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DeleteKV(const KeyType &k, const ValueType &v)
 {
 
-  PathState path_state;
-  auto root = node_table.GetNode(0);
-  path_state.node_path.push_back(root);
-  path_state.begin_key = MIN_KEY;
-  auto dt_node = root->Search(k, true, path_state);
-  auto pid = dt_node->GetPID();
+
   for(;;) {
-    Node* old_node = node_table.GetNode(pid);
-    assert(old_node == node_table.GetNode(pid));
+    PathState path_state;
+    auto root = node_table.GetNode(0);
+    path_state.node_path.push_back(root);
+    path_state.begin_key = MIN_KEY;
+    auto dt_node = root->Search(k, true, path_state);
+
+    // blame on jiexi
+    Node* old_node = dt_node;
     DeleteDelta *delta = new DeleteDelta(*this, k, v, static_cast<DataNode *>(old_node));
     // CAS into the mapping table
     bool success = node_table.UpdateNode(old_node, static_cast<Node *>(delta));
@@ -727,19 +750,17 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InsertKV(const KeyType &k,
                                                                                                     const ValueType &v)
 {
-  PathState path_state;
-  auto root = node_table.GetNode(0);
-  path_state.node_path.push_back(root);
-  path_state.begin_key = MIN_KEY;
-  auto dt_node = root->Search(k, true, path_state);
-  /*
-  if(dt_node->hasKV(k, v)){
-    //printf("dup kv\n");
-    return true;
-  }*/
-  assert(dt_node);
+
   for(;;) {
-    auto old_node = node_table.GetNode(dt_node->GetPID());
+    PathState path_state;
+    auto root = node_table.GetNode(0);
+    path_state.node_path.push_back(root);
+    path_state.begin_key = MIN_KEY;
+    auto dt_node = root->Search(k, true, path_state);
+
+    assert(dt_node);
+
+    auto old_node = dt_node;
     auto delta = new InsertDelta(*this, k, v, (DataNode *) old_node);
     assert(dt_node->GetPID() == old_node->GetPID());
     bool res = node_table.UpdateNode(old_node, (Node *) delta);
@@ -747,7 +768,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       delete delta;
     }else{
       // try consolidate root
-      LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
+      // LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
       if(root->GetDepth() > DELTA_CHAIN_LIMIT){
         Consolidate<StructNode>((StructNode *)root, path_state);
       }
@@ -761,7 +782,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::SplitRoot(InnerNode *root)
 {
   // TODO: Ensure that the root given in the parameter
-  if (root->children.size() < SPLIT_LIMIT)
+  if (root->children.size() < MAX_PAGE_SIZE)
     return;
   if (node_table.GetNode(0) != root)
     return;
