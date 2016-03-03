@@ -291,7 +291,7 @@ TEST(IndexTests, MultiThreadedInsertTest) {
 }
 
 
-TEST(IndexTests, MultiThreadedInsertTestRyan) {
+TEST(IndexTests, CostimzedTest) {
 auto pool = TestingHarness::GetInstance().GetTestingPool();
 std::vector<ItemPointer> locations;
 
@@ -299,7 +299,7 @@ std::vector<ItemPointer> locations;
 std::unique_ptr<index::Index> index(BuildIndex());
 
 // Parallel Test
-size_t num_threads = 1;
+size_t num_threads = 4;
 size_t scale_factor = 1;
 LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 

@@ -21,7 +21,6 @@
 
 namespace peloton {
   namespace index {
-
     // Look up the stx btree interface for background.
     // peloton/third_party/stx/btree.h
     template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
