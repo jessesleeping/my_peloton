@@ -16,7 +16,7 @@
 #include "backend/common/logger.h"
 #include "backend/index/index_factory.h"
 #include "backend/storage/tuple.h"
-
+#include <time.h>
 namespace peloton {
 namespace test {
 
@@ -103,6 +103,19 @@ TEST(IndexTests, BasicTest) {
   EXPECT_EQ(locations.size(), 0);
 
   delete tuple_schema;
+}
+
+void InsertTestRandomKey(index::Index *index, VarlenPool *pool, size_t scale_factor){
+  // Loop based on scale factor
+  for(size_t scale_itr = 1; scale_itr <= scale_factor; scale_itr++) {
+    // Insert a bunch of keys based on scale itr
+    std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+
+    key0->SetValue(0, ValueFactory::GetIntegerValue( (int)time(NULL)), pool);
+    key0->SetValue(1, ValueFactory::GetStringValue(std::to_string(time(NULL))), pool);
+    // INSERT
+    index->InsertEntry(key0.get(), item0);
+  }
 }
 
 // INSERT HELPER FUNCTION
@@ -264,7 +277,7 @@ TEST(IndexTests, MultiThreadedInsertTest) {
   std::unique_ptr<index::Index> index(BuildIndex());
 
   // Parallel Test
-  size_t num_threads = 1;
+  size_t num_threads = 4;
   size_t scale_factor = 1;
   LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
 
