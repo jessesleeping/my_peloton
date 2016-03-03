@@ -16,6 +16,9 @@
 #include <map>
 #include <memory>
 #include "backend/common/types.h"
+#include <thread>
+#include <chrono>
+#include "backend/common/logger.h"
 // #include "backend/common/platform.h"
 
 
@@ -122,6 +125,20 @@ namespace peloton {
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         return node_table.UpdateNode(node, iid);
       }
+
+      static void FreeNodeChain(Node *head){
+        if(head == nullptr){
+          return;
+        }
+
+        Node *next = head->GetNext();
+        while(next){
+          delete head;
+          head = next;
+          next = next->GetNext();
+        }
+        delete head;
+      }
       template <typename NodeType>
       void Consolidate(NodeType *node, PathState &state);
     public:
@@ -160,16 +177,7 @@ namespace peloton {
 
           for(auto& head : table){
             Node *h = head.load();
-            if(h == nullptr){
-              continue;
-            }
-            Node *next = h->GetNext();
-            while(next){
-              delete h;
-              h = next;
-              next = next->GetNext();
-            }
-            delete h;
+            BWTree::FreeNodeChain(h);
           }
         }
 
@@ -408,6 +416,91 @@ namespace peloton {
         PID split_pid;
       };
 
+      class GcManager{
+      public:
+        GcManager() : stop(false), global_epoch(0), daemon_thread(&GcManager::BackGroundInc, this){};
+
+
+        ~GcManager(){
+          // stop long running daemon
+          stop = true;
+          daemon_thread.join();
+
+          // delete remaining node
+          for(auto& kv : epoch_table){
+            delete kv.second;
+          }
+        }
+
+        size_t EnterEpoch() {
+          auto current_epoch = global_epoch;
+          epoch_table[current_epoch]->AddRef();
+          return current_epoch;
+        }
+
+        void ExitEpoch(size_t epoch) {
+          epoch_table[epoch]->DecRef();
+        }
+
+        // add a gc node to current epoch
+        void AddGcNode(Node *node){
+          auto current_epoch = global_epoch;
+          epoch_table[current_epoch]->AddGcNode(node);
+        }
+
+
+        void BackGroundInc(){
+          while(!stop){
+            LOG_DEBUG("add epoc");
+            // first insert
+            epoch_table[global_epoch + 1] = new EpochInfo;
+            // then inc
+            global_epoch++;
+
+            // do gc
+            for(auto kv = epoch_table.begin(); kv != epoch_table.end();){
+              if(kv->first + 2 >= global_epoch || kv->second->GetRef() != 0){
+                break;
+              }
+
+              // ref == 0, delete and erase
+              delete kv->second;
+              kv = epoch_table.erase(kv);
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+          }
+        }
+
+
+      private:
+        class EpochInfo{
+          friend class GcManager;
+        public:
+          EpochInfo() : ref(0), gc_nodes(BWTree::NODE_TABLE_DFT_CAPACITY), idx(0){ }
+          ~EpochInfo() {
+            for(int i = 0; i < idx; i++){
+              BWTree::FreeNodeChain(gc_nodes[i]);
+            }
+          }
+        private:
+          void AddGcNode(Node *n){
+            int i = idx++;
+            assert(i < NODE_TABLE_DFT_CAPACITY);
+            gc_nodes[i] = n;
+          };
+          inline void AddRef() {ref++; }
+          inline void DecRef() {ref--; }
+          inline size_t GetRef(){ return ref.load(); }
+        private:
+          std::atomic<size_t> ref;
+          std::vector<Node *> gc_nodes;
+          std::atomic<int> idx;
+        };
+        bool stop;
+        std::map<size_t, EpochInfo *>epoch_table;
+        size_t global_epoch;
+        std::thread daemon_thread;
+      };
     private:
       /** DATA FIELD **/
       KeyComparator key_comp;
