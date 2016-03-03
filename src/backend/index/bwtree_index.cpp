@@ -54,7 +54,10 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::InsertE
   // Add your implementation here
   KeyType index_key;
   index_key.SetFromKey(key);
-  return container.InsertKV(index_key, location);
+  auto epoch = container.gcManager.EnterEpoch();
+  bool res = container.InsertKV(index_key, location);
+  container.gcManager.ExitEpoch(epoch);
+  return res;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
@@ -62,7 +65,9 @@ bool BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::DeleteE
     const storage::Tuple *key, const ItemPointer location) {
   KeyType index_key;
   index_key.SetFromKey(key);
+  auto epoch = container.gcManager.EnterEpoch();
   container.DeleteKV(index_key, (ValueType)location);
+  container.gcManager.ExitEpoch(epoch);
   return false;
 }
 
@@ -73,6 +78,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
     const std::vector<oid_t> &key_column_ids,
     const std::vector<ExpressionType> &expr_types,
     const ScanDirectionType& scan_direction) {
+  auto epoch = container.gcManager.EnterEpoch();
   std::vector<ItemPointer> result;
   KeyType index_key;
 
@@ -147,19 +153,21 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::Scan(
       break;
   }
 
-
+  container.gcManager.ExitEpoch(epoch);
   return result;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys() {
+  auto epoch = container.gcManager.EnterEpoch();
   std::vector<ItemPointer> result;
   auto scanner_ptr = container.ScanFromBegin();
   while (scanner_ptr.get()->HasNext()) {
     result.push_back(scanner_ptr.get()->GetNext().second);
   }
 
+  container.gcManager.ExitEpoch(epoch);
   return result;
 }
 
@@ -169,6 +177,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys(
 template <typename KeyType, typename ValueType, class KeyComparator, class KeyEqualityChecker>
 std::vector<ItemPointer>
 BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(const storage::Tuple *key) {
+  auto epoch = container.gcManager.EnterEpoch();
   std::vector<ItemPointer> result;
   KeyType index_key;
   index_key.SetFromKey(key);
@@ -177,6 +186,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanKey(cons
   while (scanner_ptr.get()->HasNext()) {
     result.push_back(scanner_ptr.get()->GetNext().second);
   }
+  container.gcManager.ExitEpoch(epoch);
   return result;
 }
 
