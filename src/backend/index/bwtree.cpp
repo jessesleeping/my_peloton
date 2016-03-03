@@ -596,11 +596,13 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
     }
     // TODO: GC the old node
+    gcManager.AddGcNode(node);
   } else {
     // install failed
     // TODO: GC the new_node_from_split if not null
     // TODO: free the new_node, potentially a chain
     // TODO: memory leak here
+    FreeNodeChain(new_node);
   }
 }
 

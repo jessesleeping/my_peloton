@@ -418,7 +418,10 @@ namespace peloton {
 
       class GcManager{
       public:
-        GcManager() : stop(false), global_epoch(0), daemon_thread(&GcManager::BackGroundInc, this){};
+        GcManager() : stop(false), global_epoch(0){
+          epoch_table[global_epoch] = new EpochInfo;
+          daemon_thread = std::thread(&GcManager::BackGroundInc, this);
+        };
 
 
         ~GcManager(){
@@ -434,6 +437,8 @@ namespace peloton {
 
         size_t EnterEpoch() {
           auto current_epoch = global_epoch;
+          printf("enter epoch %ld\n", current_epoch);
+          assert(epoch_table.count(current_epoch));
           epoch_table[current_epoch]->AddRef();
           return current_epoch;
         }
@@ -451,7 +456,7 @@ namespace peloton {
 
         void BackGroundInc(){
           while(!stop){
-            LOG_DEBUG("add epoc");
+            printf("add epoch %ld\n", global_epoch);
             // first insert
             epoch_table[global_epoch + 1] = new EpochInfo;
             // then inc
@@ -459,16 +464,21 @@ namespace peloton {
 
             // do gc
             for(auto kv = epoch_table.begin(); kv != epoch_table.end();){
+
+              //
               if(kv->first + 2 >= global_epoch || kv->second->GetRef() != 0){
                 break;
               }
 
+              printf("gc epoch %ld\n", kv->first);
               // ref == 0, delete and erase
               delete kv->second;
               kv = epoch_table.erase(kv);
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(60));
+            std::this_thread::sleep_for(std::chrono::milliseconds(8));
           }
+
+          printf("exit background thread\n");
         }
 
 
@@ -508,7 +518,8 @@ namespace peloton {
       ValueEqualityChecker val_equals;
       NodeTable node_table;
       KeyType MIN_KEY;
-
+    public:
+      GcManager gcManager;
     };
 
   }  // End index namespace
