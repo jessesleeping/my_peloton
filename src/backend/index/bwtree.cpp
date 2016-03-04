@@ -133,7 +133,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
-  LOG_DEBUG("GetNext Begin");
+//  LOG_DEBUG("GetNext Begin");
   std::pair<KeyType, ValueType> scan_res = *iterator_cur;
   // Use ++ may cause problem when we are using backward direction
   if (++iterator_cur == iterator_end && iterator_end == buffer_result.buffer.end() && next_pid != INVALID_PID) {
@@ -154,7 +154,7 @@ std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqual
       iterator_end = buffer_result.buffer.end();
     }
   }
-  LOG_DEBUG("GetNext End");
+//  LOG_DEBUG("GetNext End");
   return scan_res;
 }
 
