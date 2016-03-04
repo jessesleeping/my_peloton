@@ -83,7 +83,7 @@ namespace peloton {
 
     private:
       struct PathState {
-        std::vector<PID> pid_path;
+//        std::vector<PID> pid_path;
         std::vector<Node *> node_path;
 
         KeyType begin_key;
@@ -230,7 +230,6 @@ namespace peloton {
          */
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
 
-        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
         // TODO: initialize depth in subclass
         inline void SetDepth(size_t d) {depth = d;}
@@ -251,7 +250,6 @@ namespace peloton {
         StructNode(BWTree &bwTree_) : Node(bwTree_) {}
         virtual ~StructNode(){}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
-        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() const = 0;
         virtual void Buffer(BufferResult<StructNode> &result) = 0;
 
@@ -264,7 +262,6 @@ namespace peloton {
       public:
         InnerNode(BWTree &bwTree_) : StructNode(bwTree_), left_pid(INVALID_PID), children(bwTree_.key_comp) {};
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-//        DataNode *GetLeftMostDescendant();
         Node *GetNext() const {return nullptr;};
         virtual void Buffer(BufferResult<StructNode> &result);
         typename StructNode::ContentType &GetContent() {return children;};
@@ -321,21 +318,101 @@ namespace peloton {
 
       /** @brief Class for BWTree structure separator node */
       // TODO: implement it
-      class InnerDeleteDelta : public StructNode {
+      class StructRemoveDelta : public StructNode {
         friend class BWTree;
       public:
-        InnerDeleteDelta(BWTree &bwTree_, StructNode *next_) : StructNode(bwTree_) {
+        StructRemoveDelta(BWTree &bwTree_, StructNode *next_, PID merge_to_) : StructNode(bwTree_), merge_to(merge_to_) {
             Node::SetPID(next_->GetPID());
             Node::SetDepth(next_->Node::GetDepth() + 1);
           };
-        virtual ~InnerDeleteDelta(){}
+        virtual ~StructRemoveDelta(){}
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
-        //virtual DataNode *GetLeftMostDescendant() = 0;
         virtual Node *GetNext() {return next;};
       private:
         StructNode *next;
+        PID merge_to;
       };
+
+      class DataRemoveDelta : public DataNode {
+        friend class BWTree;
+      public:
+        DataRemoveDelta(BWTree &bwTree_, DataNode *next_) : DataNode(bwTree_) {
+          Node::SetPID(next_->GetPID());
+          Node::SetDepth(next_->Node::GetDepth() + 1);
+        };
+        virtual ~DataRemoveDelta(){}
+        virtual void Buffer(BufferResult<DataNode> &result);
+        virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
+        virtual Node *GetNext() {return next;};
+      private:
+        DataNode *next;
+        PID merge_to;
+      };
+
+      class StructMergeDelta : public StructNode {
+        friend class BWTree;
+      public:
+        StructMergeDelta(BWTree &bwTree_, StructNode *next_, const KeyType &merge_key_) : StructNode(bwTree_), merge_key(merge_key_) {
+          this->Node::SetPID(next_->GetPID());
+          this->Node::SetDepth(next_->Node::GetDepth() + 1);
+          // My next must be a inner node
+          InnerNode *inode = static_cast<InnerNode *>(next_);
+          assert(inode != nullptr);
+          this->merged_content = &(inode->children);
+        }
+        virtual ~StructMergeDelta(){}
+        virtual void Buffer(BufferResult<StructNode> &result);
+        virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
+        virtual Node *GetNext() { return next; };
+      private:
+        StructNode *next;
+        KeyType merge_key;
+        RangeType *merged_content;
+      };
+
+      class DataMergeDelta : public DataNode {
+        friend class BWTree;
+      public:
+        DataMergeDelta(BWTree &bwTree_, DataNode *next_, const KeyType &merge_key_) : DataNode(bwTree_), merge_key(merge_key_) {
+          this->Node::SetPID(next_->GetPID());
+          this->Node::SetDepth(next_->Node::GetDepth() + 1);
+          LeafNode *lnode = static_cast<LeafNode *>(next_);
+          assert(lnode != nullptr);
+          this->merged_content = &(lnode->items);
+        }
+        virtual ~DataMergeDelta(){}
+        virtual void Buffer(BufferResult<DataNode> &result);
+        virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
+        virtual Node *GetNext() { return next; };
+      private:
+        DataNode *next;
+        KeyType merge_key;
+        ResultType *merged_content;
+      };
+
+      /** @brief Class for BwTree delete index term delta */
+      class InnerDeleteDelta : public StructNode {
+        friend class BWTree;
+      public:
+        InnerDeleteDelta(BWTree &bwTree_, const KeyType &begin_k_, const KeyType &end_k_, PID merge_to_, StructNode *next_)
+        : StructNode(bwTree_), begin_k(begin_k_), end_k(end_k_), merge_to(merge_to_), next(next_) {
+          Node::SetPID(next_->GetPID());
+          Node::SetDepth(next_->Node::GetDepth() + 1);
+        };
+        virtual ~InnerDeleteDelta(){}
+        virtual void Buffer(BufferResult<StructNode> &result);
+        virtual Node *GetNext() const {return next;};
+
+        virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
+      private:
+        // data from [begin_k, end_k) will goto end_k, i.e. merged to right
+        KeyType begin_k;
+        KeyType end_k;
+        PID merge_to;
+        StructNode *next;
+      };
+
 
       class DataNode : public Node {
         friend class BWTree;

@@ -62,7 +62,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
   // Initialize path_state
   path_state.begin_key = bwTree.MIN_KEY;
-  path_state.pid_path.push_back(0);
   path_state.node_path.push_back(root);
 
   iterator_cur = buffer_result.buffer.end();
@@ -106,7 +105,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   // Initialize path_state
   Node *root = bwTree.node_table.GetNode(0);
   path_state.begin_key = bwTree.MIN_KEY;
-  path_state.pid_path.push_back(0);
   path_state.node_path.push_back(root);
 
   iterator_cur = buffer_result.buffer.end();
@@ -216,6 +214,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   return table[pid].load();
 }
 
+
+//--===============================
+////////// SEARCH FUNTIONS
+//--===============================
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
   BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerNode::Search(KeyType target,
@@ -230,10 +232,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
 
   Node *child = Node::bwTree.node_table.GetNode(res->second);
 
-//  path_state.node_path.push_back(Node::bwTree.node_table.GetNode(this->GetPID()));
   path_state.node_path.push_back(child);
-//  path_state.pid_path.push_back(this->GetPID());
-  path_state.pid_path.push_back(child->Node::GetPID());
 
   auto old_bk = path_state.begin_key;
   auto old_ek = path_state.end_key;
@@ -264,7 +263,6 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     }
   }
 
-  path_state.pid_path.pop_back();
   path_state.node_path.pop_back();
   path_state.begin_key = old_bk;
   path_state.end_key = old_ek;
@@ -286,8 +284,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     auto child = Node::bwTree.node_table.GetNode(sep_pid);
 
     path_state.node_path.push_back(child);
-    path_state.pid_path.push_back(child->Node::GetPID());
-
 
     path_state.begin_key = begin_k;
     path_state.end_key = end_k;
@@ -308,7 +304,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 
     path_state.node_path.pop_back();
-    path_state.pid_path.pop_back();
   }else {
     // else branch
     if(!Node::bwTree.key_comp(target, end_k)){
@@ -330,12 +325,143 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   return res;
 };
 
+
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
-  assert(0);
-  return nullptr;
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructRemoveDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
+  LOG_DEBUG("Search StructRemoveDelta");
+  // The node has been removed, so search its RIGHT sibling
+  Node *next_node = Node::bwTree.node_table.GetNode(this->merge_to);
+  // Pop myself out
+  auto old_node = path_state.node_path.back();
+  path_state.node_path.pop_back();
+  // Insert next node
+  path_state.node_path.push_back(next_node);
+  DataNode *dnode = next_node->Search(target, forwards, path_state);
+  // Check consolidate
+  if (next_node->GetDepth() > DELTA_CHAIN_LIMIT) {
+    Node::bwTree.Consolidate<StructNode>((StructNode *)next_node, path_state);
+  }
+  // Revert status
+  path_state.node_path.pop_back();
+  path_state.node_path.push_back(old_node);
+
+  return dnode;
 };
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataRemoveDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
+{
+  LOG_DEBUG("Search DataRemoveDelta");
+
+  // The code is EXACTLY the same as StructRemoveDelta......
+  // The node has been removed, so search its RIGHT sibling
+  Node *next_node = Node::bwTree.node_table.GetNode(this->merge_to);
+  // Pop myself out
+  auto old_node = path_state.node_path.back();
+  path_state.node_path.pop_back();
+  // Insert next node
+  path_state.node_path.push_back(next_node);
+  DataNode *dnode = next_node->Search(target, forwards, path_state);
+  // Check consolidate
+  if (next_node->GetDepth() > DELTA_CHAIN_LIMIT) {
+    Node::bwTree.Consolidate<DataNode>((DataNode *)next_node, path_state);
+  }
+  // Revert status
+  path_state.node_path.pop_back();
+  path_state.node_path.push_back(old_node);
+
+  return dnode;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructMergeDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
+{
+  LOG_DEBUG("Search StructMergeDelta");
+  // First try to see if the target is less than the merge key
+  if (this->Node::bwTree.key_comp(target, merge_key)) {
+    // Search from the merged content
+    auto itr = this->merged_content->upper_bound(target);
+    // We must find something
+    assert(itr != this->merged_content->end());
+    auto next = --itr;
+    PID next_pid = next->second;
+    Node *node = Node::bwTree.node_table.GetNode(next_pid);
+    auto old_bk = path_state.begin_key;
+    path_state.begin_key = next->first;
+    path_state.node_path.push_back(node);
+    auto dnode = node->Search(target, forwards, path_state);
+
+    // Check consolidate
+    if (node->GetDepth() > DELTA_CHAIN_LIMIT) {
+      if (static_cast<DataNode *>(node) != nullptr) {
+        Node::bwTree.Consolidate<DataNode>((DataNode *)node, path_state);
+      } else {
+        Node::bwTree.Consolidate<StructNode>((StructNode *)node, path_state);
+      }
+    }
+    path_state.begin_key = old_bk;
+    path_state.node_path.pop_back();
+
+    return dnode;
+  } else {
+    // Search from next node
+    auto node = this->next;
+    return node->Search(target, forwards, path_state);
+  }
+}
+
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataMergeDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
+{
+  LOG_DEBUG("Search DataMergeDelta");
+  if (this->Node::bwTree.key_comp(target, merge_key)) {
+    // target < merge_key
+    // return myself
+    return this;
+  } else {
+    // target >= merge_key
+    auto res = this->next->Search(target, forwards, path_state);
+    if (res->GetPID() == this->GetPID()) {
+      return this;
+    } else {
+      return res;
+    }
+  }
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
+{
+  LOG_DEBUG("Search InnerDeleteDelta");
+  auto &key_cmp = Node::bwTree.key_comp;
+  if (!key_cmp(target, this->begin_k) && key_cmp(target, this->end_k)) {
+    // begin_k <= target < end_k, goto merged node
+    auto old_bk = path_state.begin_key;
+    path_state.begin_key = this->begin_k;
+    auto node = Node::bwTree.node_table.GetNode(merge_to);
+    path_state.node_path.push_back(node);
+    auto dnode = node->Search(target, forwards, path_state);
+    if (node->GetDepth() > DELTA_CHAIN_LIMIT) {
+      if (static_cast<DataNode *>(node) != nullptr)
+        Node::bwTree.Consolidate<DataNode>((DataNode *)node, path_state);
+      else
+        Node::bwTree.Consolidate<StructNode>((StructNode *)node, path_state);
+    }
+    path_state.node_path.pop_back();
+    path_state.begin_key = old_bk;
+    return dnode;
+  } else {
+    // begin_k > end_k, goto next
+    auto dnode = this->next->Search(target, forwards, path_state);
+    return dnode;
+  }
+}
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
@@ -381,7 +507,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   DataNode *res;
   if (Node::bwTree.key_comp(path_state.begin_key, split_key)) {
     // try and go
-    // begin_key < split_key < end_key
+    // begin_key < split_key
     // sep: [path_state.begin_k, split_key), pid
     assert(path_state.node_path.size() >= 2);
     auto path_size = path_state.node_path.size();
@@ -638,8 +764,58 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Buffer( __attribute__((unused)) BufferResult<StructNode> &result) {
-  assert(0);
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::StructRemoveDelta::Buffer(__attribute__((unused)) BufferResult<StructNode> &result)
+{
+  LOG_DEBUG("Buffer StructRemoveDelta");
+  // The node has been removed, buffer nothing
+  return;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DataRemoveDelta::Buffer( __attribute__((unused)) BufferResult<DataNode> &result) {
+  LOG_DEBUG("Buffer DataRemoveDelta");
+  // The node has been removed, buffer nothing
+  return;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::StructMergeDelta::Buffer( __attribute__((unused)) BufferResult<StructNode> &result)
+{
+  LOG_DEBUG("Buffer StructMergeDelta");
+
+  this->next->Buffer(result);
+  // This buffer must contain result from the merged node
+  result.buffer.insert(this->merged_content->begin(), this->merged_content->end());
+  return;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::DataMergeDelta::Buffer( __attribute__((unused)) BufferResult<DataNode> &result)
+{
+  LOG_DEBUG("Buffer DataMergeDelta");
+
+  this->next->Buffer(result);
+  // This buffer must contain result from the merged node
+  result.buffer.insert(this->merged_content->begin(), this->merged_content->end());
+  return;
+}
+
+template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
+void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerDeleteDelta::Buffer( __attribute__((unused)) BufferResult<StructNode> &result)
+{
+  LOG_DEBUG("Buffer InnerDeleteDelta");
+
+  this->next->Buffer(result);
+  // Find the merged range and delete from the map
+  auto end_key_itr = result.buffer.find(this->end_k);
+  assert(end_key_itr != result.buffer.end());
+  PID merged_to = end_key_itr->second;
+  // Erase merged ranges
+  result.buffer.erase(this->begin_k);
+  result.buffer.erase(this->end_k);
+  // Insert merged result
+  result.buffer.insert(std::make_pair(this->begin_k, merged_to));
+
   return;
 }
 
