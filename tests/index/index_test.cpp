@@ -111,8 +111,8 @@ void InsertTestRandomKey(index::Index *index, VarlenPool *pool, size_t scale_fac
     // Insert a bunch of keys based on scale itr
     std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
 
-    key0->SetValue(0, ValueFactory::GetIntegerValue( (int)time(NULL)), pool);
-    key0->SetValue(1, ValueFactory::GetStringValue(std::to_string(time(NULL))), pool);
+    key0->SetValue(0, ValueFactory::GetIntegerValue( std::rand()), pool);
+    key0->SetValue(1, ValueFactory::GetStringValue(std::to_string(std::rand())), pool);
     // INSERT
     index->InsertEntry(key0.get(), item0);
   }
@@ -302,8 +302,57 @@ TEST(IndexTests, MultiThreadedInsertTest) {
 
   delete tuple_schema;
 }
+/*
+TEST(IndexTests, MultiThreadedInsertDeleteTest) {
+auto pool = TestingHarness::GetInstance().GetTestingPool();
+std::vector<ItemPointer> locations;
+
+// INDEX
+std::unique_ptr<index::Index> index(BuildIndex());
+
+// Parallel Test
+size_t num_threads = 200;
+size_t scale_factor = 1;
+LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
+LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+locations = index->ScanAllKeys();
+std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+std::unique_ptr<storage::Tuple> keynonce(new storage::Tuple(key_schema, true));
+
+keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+
+key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+
+locations = index->ScanKey(keynonce.get());
+
+locations = index->ScanKey(key0.get());
+
+delete tuple_schema;
+}
+*/
+TEST(IndexTests, MultiThreadedInsertRandomTest) {
+auto pool = TestingHarness::GetInstance().GetTestingPool();
+std::vector<ItemPointer> locations;
+
+// INDEX
+std::unique_ptr<index::Index> index(BuildIndex());
+
+// Parallel Test
+size_t num_threads = 4;
+size_t scale_factor = 400;
+LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+locations = index->ScanAllKeys();
+EXPECT_EQ(locations.size(), scale_factor * num_threads);
 
 
+
+delete tuple_schema;
+}
+
+/*
 TEST(IndexTests, CostimzedTest) {
 auto pool = TestingHarness::GetInstance().GetTestingPool();
 std::vector<ItemPointer> locations;
@@ -337,6 +386,6 @@ EXPECT_EQ(locations[0].block, item0.block);
 
 delete tuple_schema;
 }
-
+*/
 }  // End test namespace
 }  // End peloton namespace

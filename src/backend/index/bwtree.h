@@ -18,12 +18,21 @@
 #include "backend/common/types.h"
 #include <thread>
 #include <chrono>
+#include <mutex>
 #include "backend/common/logger.h"
 // #include "backend/common/platform.h"
 
 
+
 namespace peloton {
   namespace index {
+
+#define my_assert(cond) do { \
+  if(!(cond)){  \
+    printf("my_assert fail in %d\n", __LINE__);  \
+  } \
+  assert((cond)); \
+}while(0) \
     // Look up the stx btree interface for background.
     // peloton/third_party/stx/btree.h
     template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -58,9 +67,9 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 0;
+      const static size_t DELTA_CHAIN_LIMIT = 16;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 8;
+      const static size_t MAX_PAGE_SIZE = 64;
       const static size_t MIN_PAGE_SIZE = 64;
       class Iterator;
 
@@ -122,7 +131,9 @@ namespace peloton {
        */
       bool InstallSeparator(StructNode *node, KeyType begin_key, KeyType end_key, PID new_pid) {
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
-        return node_table.UpdateNode(node, iid);
+        bool res = node_table.UpdateNode(node, iid);
+        if(!res){ delete iid;}
+        return res;
       }
       /**
        * @brief Try to install a delete index term delta to a structure node. This function will not retry.
@@ -228,7 +239,7 @@ namespace peloton {
 
       public:
         Node() = delete;
-        Node(BWTree &bwTree_) : bwTree(bwTree_), pid(INVALID_PID), depth(0) {};
+        Node(BWTree &bwTree_) : bwTree(bwTree_), pid(INVALID_PID), depth(0) { bwTree.node_num++;};
         virtual ~Node(){}
 
         /**
@@ -272,6 +283,7 @@ namespace peloton {
         friend class BWTree;
       public:
         InnerNode(BWTree &bwTree_) : StructNode(bwTree_), left_pid(INVALID_PID), children(bwTree_.key_comp) {};
+        virtual ~InnerNode() { Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load());}
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         Node *GetNext() const {return nullptr;};
         virtual void Buffer(BufferResult<StructNode> &result);
@@ -293,7 +305,7 @@ namespace peloton {
           this->Node::SetDepth(next_->GetDepth()+1);
           this->Node::SetPID(next_->Node::GetPID());
         };
-        virtual ~StructSplitDelta(){};
+        virtual ~StructSplitDelta(){ Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load()); };
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         //virtual DataNode *GetLeftMostDescendant() { return nullptr; };
@@ -314,7 +326,7 @@ namespace peloton {
           Node::SetPID(next_->GetPID());
           Node::SetDepth(next_->Node::GetDepth() + 1);
         };
-        virtual ~InnerInsertDelta(){}
+        virtual ~InnerInsertDelta(){ Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load());}
         virtual void Buffer(BufferResult<StructNode> &result);
         //virtual DataNode *GetLeftMostDescendant() {return nullptr;};
         virtual Node *GetNext() const {return next;};
@@ -336,7 +348,7 @@ namespace peloton {
             Node::SetPID(next_->GetPID());
             Node::SetDepth(next_->Node::GetDepth() + 1);
           };
-        virtual ~StructRemoveDelta(){}
+        virtual ~StructRemoveDelta(){Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load());}
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() {return next;};
@@ -433,6 +445,7 @@ namespace peloton {
         typedef ResultType ContentType;
       public:
         DataNode(BWTree &bwTree_) : Node(bwTree_){};
+        virtual ~DataNode() {};
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual void Buffer(BufferResult<DataNode> &result) = 0;
@@ -445,6 +458,7 @@ namespace peloton {
         friend class BWTree;
       public:
         LeafNode(BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
+        virtual ~LeafNode() { Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load()); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return nullptr;};
@@ -466,6 +480,7 @@ namespace peloton {
           Node::SetPID(next_->GetPID());
           Node::SetDepth(next->Node::GetDepth()+1);
         };
+        virtual ~InsertDelta() { Node::bwTree.node_num--;printf("node num %d\n", Node::bwTree.node_num.load()); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return next;};
@@ -480,6 +495,7 @@ namespace peloton {
       public:
         DeleteDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
+        virtual ~DeleteDelta() { Node::bwTree.node_num--; printf("node num %d\n", Node::bwTree.node_num.load()); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return next;};
@@ -494,7 +510,7 @@ namespace peloton {
         friend class BWTree;
       public:
         DataSplitDelta(BWTree &bwTree_, DataNode *next_, const KeyType &k, PID p ): DataNode(bwTree_), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
-        ~DataSplitDelta() {}
+        virtual ~DataSplitDelta() { Node::bwTree.node_num--;printf("node num %d\n", Node::bwTree.node_num.load()); }
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual void Buffer(BufferResult<DataNode> &result);
         virtual Node *GetNext() const {return next;};
@@ -524,26 +540,34 @@ namespace peloton {
         }
 
         size_t EnterEpoch() {
+          map_lock.lock();
           auto current_epoch = global_epoch;
           printf("enter epoch %ld\n", current_epoch);
-          assert(epoch_table.count(current_epoch));
+          my_assert(epoch_table.count(current_epoch));
           epoch_table[current_epoch]->AddRef();
+
+          map_lock.unlock();
           return current_epoch;
         }
 
         void ExitEpoch(size_t epoch) {
+          map_lock.lock();
           epoch_table[epoch]->DecRef();
+          map_lock.unlock();
         }
 
         // add a gc node to current epoch
         void AddGcNode(Node *node){
+          map_lock.lock();
           auto current_epoch = global_epoch;
           epoch_table[current_epoch]->AddGcNode(node);
+          map_lock.unlock();
         }
 
 
         void BackGroundInc(){
           while(!stop){
+            map_lock.lock();
             printf("add epoch %ld\n", global_epoch);
             // first insert
             epoch_table[global_epoch + 1] = new EpochInfo;
@@ -563,6 +587,7 @@ namespace peloton {
               delete kv->second;
               kv = epoch_table.erase(kv);
             }
+            map_lock.unlock();
             std::this_thread::sleep_for(std::chrono::milliseconds(8));
           }
 
@@ -577,13 +602,17 @@ namespace peloton {
           EpochInfo() : ref(0), gc_nodes(BWTree::NODE_TABLE_DFT_CAPACITY), idx(0){ }
           ~EpochInfo() {
             for(int i = 0; i < idx; i++){
+              printf("free node head %p\n", gc_nodes[i]);
               BWTree::FreeNodeChain(gc_nodes[i]);
             }
           }
         private:
           void AddGcNode(Node *n){
             int i = idx++;
-            assert(i < NODE_TABLE_DFT_CAPACITY);
+            if(idx >= NODE_TABLE_DFT_CAPACITY){
+              printf("idx bigger than xxx\n");
+            }
+            my_assert(i < NODE_TABLE_DFT_CAPACITY);
             gc_nodes[i] = n;
           };
           inline void AddRef() {ref++; }
@@ -594,6 +623,7 @@ namespace peloton {
           std::vector<Node *> gc_nodes;
           std::atomic<int> idx;
         };
+        std::mutex map_lock;
         bool stop;
         std::map<size_t, EpochInfo *>epoch_table;
         size_t global_epoch;
@@ -606,6 +636,7 @@ namespace peloton {
       ValueEqualityChecker val_equals;
       NodeTable node_table;
       KeyType MIN_KEY;
+      std::atomic<int> node_num;
     public:
       GcManager gcManager;
     };

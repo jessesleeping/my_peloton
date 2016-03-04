@@ -23,7 +23,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key_comp(kcp),
   key_equals(keq),
   val_equals(ValueEqualityChecker()),
-  node_table(NODE_TABLE_DFT_CAPACITY) { }
+  node_table(NODE_TABLE_DFT_CAPACITY) { node_num = 0;  }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Init()
@@ -31,7 +31,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   // Create a root node
   InnerNode*root = new InnerNode(*this);
   PID pid = node_table.InsertNode(static_cast<Node *>(root));
-  assert(pid == 0);
+  my_assert(pid == 0);
 
   // Create a leaf node
   LeafNode *leaf = new LeafNode(*this);
@@ -57,7 +57,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   LOG_DEBUG("BEGIN SCAN");
   PathState path_state;
   // TODO: support backward scan
-  assert(forward == true);
+  my_assert(forward == true);
 
   // TODO: Assume that root is always in PID 0
   Node *root = bwTree.node_table.GetNode(0);
@@ -79,7 +79,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   // Check if root needs consolidate
   if (root->GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
     StructNode *struct_node = dynamic_cast<StructNode *>(root);
-    assert(struct_node != nullptr);
+    my_assert(struct_node != nullptr);
     // Special consolidatation
     bwTree.Consolidate<StructNode>(struct_node, path_state);
   }
@@ -119,7 +119,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   // Check if root need consolidate
   if (root->GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
     StructNode *struct_node = static_cast<StructNode *>(root);
-    assert(struct_node != nullptr);
+    my_assert(struct_node != nullptr);
     // Special consolidatation
     bwTree.Consolidate<StructNode>(struct_node, path_state);
   }
@@ -136,11 +136,12 @@ std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqual
 //  LOG_DEBUG("GetNext Begin");
   std::pair<KeyType, ValueType> scan_res = *iterator_cur;
   // Use ++ may cause problem when we are using backward direction
-  if (++iterator_cur == iterator_end && iterator_end == buffer_result.buffer.end() && next_pid != INVALID_PID) {
+  // if (++iterator_cur == iterator_end && iterator_end == buffer_result.buffer.end() && next_pid != INVALID_PID) {
+  if ( (iterator_cur == buffer_result.buffer.end() || ++iterator_cur == buffer_result.buffer.end()) && next_pid != INVALID_PID) {
     LOG_DEBUG("Scanner move to node PID = %d", (int)next_pid);
     // make new buffer
     DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
-    assert(data_node != NULL);
+    my_assert(data_node != NULL);
     buffer_result.buffer.clear();
     data_node->Buffer(buffer_result);
     next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
@@ -185,10 +186,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node * old_node, Node *new_node)
 {
-  assert(old_node);
-  assert(new_node);
-  assert(old_node->GetPID() == new_node->GetPID());
-  assert(old_node->GetPID() != INVALID_PID);
+  my_assert(old_node);
+  my_assert(new_node);
+  my_assert(old_node->GetPID() == new_node->GetPID());
+  my_assert(old_node->GetPID() != INVALID_PID);
   return table[old_node->pid].compare_exchange_strong(old_node, new_node);
 }
 
@@ -211,7 +212,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Node*
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::GetNode(PID pid) const
 {
-  assert(pid < table.capacity());
+  my_assert(pid < table.capacity());
 
   return table[pid].load();
 }
@@ -228,7 +229,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
   //return nullptr;
   // TODO: direction
   LOG_DEBUG("Search at InnerNode node PID = %d", (int)Node::GetPID());
-  assert(!children.empty());
+  my_assert(!children.empty());
   auto res = children.upper_bound(target);
   auto next = res--;
 
@@ -257,7 +258,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     // consolidate
     DataNode *data_node = dynamic_cast<DataNode*>(child);
     StructNode *struct_node = dynamic_cast<StructNode*>(child);
-    assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
+    my_assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
     // TODO: seems data_node will never be nullptr so the following statement will always be true?
     if (data_node != nullptr) {
       Node::bwTree.Consolidate<DataNode>(data_node, path_state);
@@ -297,7 +298,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       // consolidate
       DataNode *data_node = dynamic_cast<DataNode*>(child);
       StructNode *struct_node = dynamic_cast<StructNode*>(child);
-      assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
+      my_assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
       if (data_node != nullptr) {
         Node::bwTree.Consolidate<DataNode>(data_node, path_state);
       } else {
@@ -331,6 +332,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
+
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructRemoveDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
   LOG_DEBUG("Search StructRemoveDelta");
   // The node has been removed, but the accessor doesn't know it, which means the delete index term delta is not present on the father,
@@ -521,7 +523,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // try and go
     // begin_key < split_key
     // sep: [path_state.begin_k, split_key), pid
-    assert(path_state.node_path.size() >= 2);
+    my_assert(path_state.node_path.size() >= 2);
     auto path_size = path_state.node_path.size();
     Node::bwTree.InstallSeparator((StructNode *) path_state.node_path[path_size - 2],
                                   path_state.begin_key,
@@ -534,7 +536,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     res = sibling->Search(target, forwards, path_state);
     if (sibling->Node::GetDepth() > DELTA_CHAIN_LIMIT) {
       StructNode *node = dynamic_cast<StructNode*>(sibling);
-      assert(node != nullptr);
+      my_assert(node != nullptr);
       Node::bwTree.Consolidate<StructNode>(node, path_state);
     }
 
@@ -560,7 +562,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // try and go
     // begin_key < split_key < end_key
     // sep: [path_state.begin_k, split_key), pid
-    assert(path_state.node_path.size() >= 2);
+    my_assert(path_state.node_path.size() >= 2);
     auto path_size = path_state.node_path.size();
     Node::bwTree.InstallSeparator((StructNode *) path_state.node_path[path_size - 2],
                                   path_state.begin_key,
@@ -580,7 +582,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
     if (sibling->Node::GetDepth() > DELTA_CHAIN_LIMIT) {
       DataNode *node = dynamic_cast<DataNode*>(sibling);
-      assert(node != nullptr);
+      my_assert(node != nullptr);
       // TODO: check if the path_state key range is OK
       Node::bwTree.Consolidate<DataNode>(node, path_state);
     }
@@ -603,7 +605,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
-  LOG_DEBUG("Consolidate at node PID = %d, node depth is %ld", (int)node->Node::GetPID(),node->GetDepth());
+  printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
   if(node->Node::GetPID() == 0){
     LOG_DEBUG("\tConsolidate root");
     return;
@@ -614,7 +616,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   typename NodeType::BaseNodeType *new_base = nullptr;
   typename NodeType::BaseNodeType *new_base_from_split = nullptr;
 
-  assert(node->Node::GetDepth() > DELTA_CHAIN_LIMIT);
+  my_assert(node->Node::GetDepth() > DELTA_CHAIN_LIMIT);
 
   StructNode *struct_node = nullptr;
   PID left_pid = INVALID_PID;
@@ -632,22 +634,22 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       break;
     case SPLIT:
       LOG_DEBUG("\tUnfinished SPLIT");
-      assert(buffer_result.smo_node != nullptr);
+      my_assert(buffer_result.smo_node != nullptr);
       split_delta = dynamic_cast<typename NodeType::SplitDeltaType *>(buffer_result.smo_node);
-      assert(split_delta != nullptr);
+      my_assert(split_delta != nullptr);
       // try to finish the split
-      assert(state.node_path.size() >= 2);
+      my_assert(state.node_path.size() >= 2);
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
-      assert(struct_node != nullptr);
+      my_assert(struct_node != nullptr);
       if (!InstallSeparator(struct_node, state.begin_key, split_delta->split_key, split_delta->pid)) {
         // Complete SMO failed
-        LOG_DEBUG("\tFail in finishing SPLIT");
+        printf("\tFail in finishing SPLIT\n");
         return;
       }
       break;
     case MERGE:
     // TODO: implement it
-      assert(0);
+      my_assert(0);
       break;
     default:
       throw Exception("Invalid SMO type\n");
@@ -658,7 +660,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   LOG_DEBUG("\tContinue consolidating");
 
   // Check if need split/merge
-  LOG_DEBUG("do consolidate, buffer size %d\n", (int)buffer_result.buffer.size());
+  printf("do consolidate, buffer size %d\n", (int)buffer_result.buffer.size());
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
     LOG_DEBUG("\tDo split");
     // Do split
@@ -666,7 +668,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     if (node->Node::GetPID() == 0) {
       // TODO: do root split
       LOG_DEBUG("split");
-      assert(0);
+      my_assert(0);
     }
 
     new_base = new typename NodeType::BaseNodeType(*this);
@@ -696,7 +698,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       new_base_from_split->GetContent().insert(buffer_result.buffer.begin(), split_itr);
       new_base_from_split->SetBrothers(buffer_result.prev_pid, node->Node::GetPID());
       left_pid = node_table.InsertNode(new_base_from_split);
-      assert(left_pid != INVALID_PID);
+      my_assert(left_pid != INVALID_PID);
       LOG_DEBUG("left pid %d size %d \t right pid %d size %d \t total size %d\n", (int) (left_pid), (int)new_base_from_split->GetContent().size(),
                 (int) new_base->GetPID(), (int)new_base->GetContent().size(),
                 (int) buffer_result.buffer.size());
@@ -727,10 +729,10 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // install success
     if (new_base_from_split != nullptr) {
       // Try to install delta
-      assert(state.node_path.size() >= 2);
+      my_assert(state.node_path.size() >= 2);
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
-      assert(struct_node != nullptr);
-      assert(left_pid == new_base_from_split->GetPID());
+      my_assert(struct_node != nullptr);
+      my_assert(left_pid == new_base_from_split->GetPID());
       InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
     }
     // TODO: GC the old node
@@ -758,7 +760,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
         break;
       }
     }
-    assert(itr != children.end());
+    my_assert(itr != children.end());
     // insert to result buffer
     result.buffer.insert(itr, children.end());
 
@@ -836,7 +838,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   // see if we observe an incomplete split
   if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
-    assert(result.smo_type == NONE); // We can only have one SMO in the chain
+    my_assert(result.smo_type == NONE); // We can only have one SMO in the chain
     result.smo_type = SPLIT;
     result.smo_node = this;
     // rearrnage key range for the following .Buffer
@@ -874,7 +876,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       break;
     }
   }
-  assert(itr != items.end());
+  my_assert(itr != items.end());
   // insert to result buffer
   result.buffer.insert(itr, items.end());
   LOG_DEBUG("LeafNode buffer size %d", (int)result.buffer.size());
@@ -913,7 +915,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   // see if we observe an incomplete split
   if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
-    assert(result.smo_type == NONE); // We can only have one SMO in the chain
+    my_assert(result.smo_type == NONE); // We can only have one SMO in the chain
     result.smo_type = SPLIT;
     result.smo_node = this;
     // re-arrange key range for the following .Buffer
@@ -958,7 +960,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       delete delta;
     }else{
       // try consolidate root
-      assert(path_state.node_path.size() == 1);
+      my_assert(path_state.node_path.size() == 1);
       if(root->GetDepth() > DELTA_CHAIN_LIMIT){
         Consolidate<StructNode>((StructNode *)root, path_state);
       }
@@ -979,11 +981,11 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     path_state.begin_key = MIN_KEY;
     auto dt_node = root->Search(k, true, path_state);
 
-    assert(dt_node);
+    my_assert(dt_node);
 
     auto old_node = dt_node;
     auto delta = new InsertDelta(*this, k, v, (DataNode *) old_node);
-    assert(dt_node->GetPID() == old_node->GetPID());
+    my_assert(dt_node->GetPID() == old_node->GetPID());
     bool res = node_table.UpdateNode(old_node, (Node *) delta);
     if(!res){
       delete delta;
@@ -1014,7 +1016,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   for (int middle = 0; middle < root->children.size() / 2; itr++, middle++)
     ;
 
-  assert(itr != root->children.end());
+  my_assert(itr != root->children.end());
   KeyType split_key = itr->first;
 
   // Make a new node with the splited data
@@ -1063,7 +1065,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ScanFromBegin(){
   Scanner *scannerp = new Scanner(*this, key_comp);
-  assert(key_equals(MIN_KEY, MIN_KEY));
+  my_assert(key_equals(MIN_KEY, MIN_KEY));
   auto res = std::unique_ptr<Scanner>(scannerp);
   return res;
 }
