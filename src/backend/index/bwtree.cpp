@@ -13,6 +13,8 @@
 #include "backend/index/bwtree.h"
 #include "backend/index/index_key.h"
 #include "backend/common/logger.h"
+#include "bwtree.h"
+
 namespace peloton {
 namespace index {
 
@@ -216,7 +218,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 
 //--===============================
-////////// SEARCH FUNTIONS
+////////// SEARCH FUNCTIONS
 //--===============================
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
@@ -256,6 +258,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
     DataNode *data_node = dynamic_cast<DataNode*>(child);
     StructNode *struct_node = dynamic_cast<StructNode*>(child);
     assert((data_node != nullptr && struct_node == nullptr) || (data_node == nullptr && struct_node != nullptr));
+    // TODO: seems data_node will never be nullptr so the following statement will always be true?
     if (data_node != nullptr) {
       Node::bwTree.Consolidate<DataNode>(data_node, path_state);
     } else {
@@ -330,7 +333,12 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataNode *
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructRemoveDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state){
   LOG_DEBUG("Search StructRemoveDelta");
-  // The node has been removed, so search its RIGHT sibling
+  // The node has been removed, but the accessor doesn't know it, which means the delete index term delta is not present on the father,
+  // when the client is searching down the tree. So here an unfinished SMO is detected. We should try to install the delete
+  // index term delta to the father before we goto the RIGHT sibling.
+  auto path_size = path_state.node_path.size();
+  Node::bwTree.InstallDelete((StructNode *)path_state.node_path[path_size-2], path_state.begin_key, path_state.end_key, this->merge_to);
+  // Go to the RIGHT sibling
   Node *next_node = Node::bwTree.node_table.GetNode(this->merge_to);
   // Pop myself out
   auto old_node = path_state.node_path.back();
@@ -356,7 +364,9 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   LOG_DEBUG("Search DataRemoveDelta");
 
   // The code is EXACTLY the same as StructRemoveDelta......
-  // The node has been removed, so search its RIGHT sibling
+  auto path_size = path_state.node_path.size();
+  Node::bwTree.InstallDelete((StructNode *)path_state.node_path[path_size-2], path_state.begin_key, path_state.end_key, this->merge_to);
+  // Go to the RIGHT sibling
   Node *next_node = Node::bwTree.node_table.GetNode(this->merge_to);
   // Pop myself out
   auto old_node = path_state.node_path.back();
@@ -380,8 +390,10 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::StructMergeDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
 {
   LOG_DEBUG("Search StructMergeDelta");
-  // First try to see if the target is less than the merge key
-  if (this->Node::bwTree.key_comp(target, merge_key)) {
+  // First check if there's unfinished SMO, that is the parent doesn't know about the merge.
+  // In this case, the search will goto left first, then it will go to right again. But the left sibling will first
+  // detect the unfinished SMO, so we don't care about it here.
+  if (this->Node::bwTree.key_comp(target, sep_key)) {
     // Search from the merged content
     auto itr = this->merged_content->upper_bound(target);
     // We must find something
@@ -419,7 +431,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataMergeDelta::Search(__attribute__((unused)) KeyType target, __attribute__((unused)) bool forwards, __attribute__((unused)) PathState &path_state)
 {
   LOG_DEBUG("Search DataMergeDelta");
-  if (this->Node::bwTree.key_comp(target, merge_key)) {
+  if (this->Node::bwTree.key_comp(target, sep_key)) {
     // target < merge_key
     // return myself
     return this;

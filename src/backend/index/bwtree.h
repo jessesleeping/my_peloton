@@ -114,8 +114,7 @@ namespace peloton {
     private:
       // Helper functions
       /**
-       * @brief Install a separator delta to a structure node. This function will not retry install
-       *        until success.
+       * @brief Install a separator delta to a structure node. This function will not retry.
        * @param node        Node for which to install the separator, it should be the caller's ancestor
        * @param begin_key   The start of the splited range
        * @param end_key     The end of the splited range
@@ -124,6 +123,18 @@ namespace peloton {
       bool InstallSeparator(StructNode *node, KeyType begin_key, KeyType end_key, PID new_pid) {
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         return node_table.UpdateNode(node, iid);
+      }
+      /**
+       * @brief Try to install a delete index term delta to a structure node. This function will not retry.
+       * @param node        Node for which to install the delete, it should be the caller's ancestor
+       * @param begin_key   The key of the range to be merged from
+       * @param end_key     The key of the range to be merged into
+       * @return true if the install succeed, false otherwise. On success, the installment will merge the range
+       *  [begin_key, end_key) to the range [end_key, *), * is the key for the range after the merge destination node.
+       */
+      bool InstallDelete(StructNode *node, KeyType begin_key, KeyType end_key, PID merge_to) {
+        InnerDeleteDelta *idd = new InnerDeleteDelta(*this, begin_key, end_key, merge_to, node);
+        return node_table.UpdateNode(node, idd);
       }
 
       static void FreeNodeChain(Node *head){
@@ -353,7 +364,7 @@ namespace peloton {
       class StructMergeDelta : public StructNode {
         friend class BWTree;
       public:
-        StructMergeDelta(BWTree &bwTree_, StructNode *next_, const KeyType &merge_key_) : StructNode(bwTree_), merge_key(merge_key_) {
+        StructMergeDelta(BWTree &bwTree_, StructNode *next_, const KeyType &sep_key_) : StructNode(bwTree_), sep_key(sep_key_) {
           this->Node::SetPID(next_->GetPID());
           this->Node::SetDepth(next_->Node::GetDepth() + 1);
           // My next must be a inner node
@@ -367,14 +378,14 @@ namespace peloton {
         virtual Node *GetNext() { return next; };
       private:
         StructNode *next;
-        KeyType merge_key;
+        KeyType sep_key;
         RangeType *merged_content;
       };
 
       class DataMergeDelta : public DataNode {
         friend class BWTree;
       public:
-        DataMergeDelta(BWTree &bwTree_, DataNode *next_, const KeyType &merge_key_) : DataNode(bwTree_), merge_key(merge_key_) {
+        DataMergeDelta(BWTree &bwTree_, DataNode *next_, const KeyType &sep_key_) : DataNode(bwTree_), sep_key(sep_key_) {
           this->Node::SetPID(next_->GetPID());
           this->Node::SetDepth(next_->Node::GetDepth() + 1);
           LeafNode *lnode = static_cast<LeafNode *>(next_);
@@ -387,7 +398,7 @@ namespace peloton {
         virtual Node *GetNext() { return next; };
       private:
         DataNode *next;
-        KeyType merge_key;
+        KeyType sep_key;
         ResultType *merged_content;
       };
 
