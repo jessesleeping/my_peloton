@@ -201,6 +201,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   PID new_pid = next_pid++;
   if (new_pid >= table.capacity()) {
     LOG_ERROR("BWTree mapping table is full, can't insert new node");
+    assert(false);
     return INVALID_PID;
   }
 
@@ -705,14 +706,21 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
                 (int) new_base->GetPID(), (int)new_base->GetContent().size(),
                 (int) buffer_result.buffer.size());
 
-
-
       // create a DataSplitDelta for the old node
       split_delta = new typename NodeType::SplitDeltaType(*this, new_base, split_itr->first, left_pid);
       new_node = split_delta;
     }
     // set the old node
     new_base->SetBrothers(left_pid, buffer_result.next_pid);
+
+    // update the right sibling of the left node
+    Node *left_node = node_table.GetNode(buffer_result.prev_pid);
+    while (left_node->GetNext() != nullptr) {
+      left_node = left_node->GetNext();
+    }
+    typename NodeType::BaseNodeType *left_base_node = static_cast<typename NodeType::BaseNodeType *>(left_node);
+    my_assert(left_base_node != nullptr);
+    left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
   }
 // else if (buffer_result.buffer.size() < MIN_PAGE_SIZE) {
 //    // TODO: Implement Merge
@@ -769,7 +777,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // set next and prev
 //  // TODO: check if we need to handle merge/split here
     result.next_pid = INVALID_PID;
-    result.prev_pid = this->left_pid;
+    result.prev_pid = this->prev;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -1028,8 +1036,6 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   // node2 has the range [itr, root.end), node2 is now the old root
   node1->children = RangeType(root->children.begin(), itr, key_comp);
   node2->children = RangeType(itr, root->children.end(), key_comp);
-  node2->left_pid = root->left_pid;
-  node1->left_pid = root->left_pid;
   // Store the new nodes into node_table
   PID pid1 = node_table.InsertNode(node1);
   PID pid2 = node_table.InsertNode(node2);

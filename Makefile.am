@@ -16,3 +16,4 @@ EXTRA_DIST = bootstrap $(DX_CONFIG) doc
 
 clean-local:
 	find . -type f -name "*.gcno" -delete; find . -type f -name "*.gcda" -delete
+
