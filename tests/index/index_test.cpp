@@ -342,8 +342,8 @@ std::unique_ptr<index::Index> index(BuildIndex());
 
 // Parallel Test
 size_t num_threads = 4;
-size_t scale_factor = 400;
-LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+size_t scale_factor = 100;
+LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
 locations = index->ScanAllKeys();
 EXPECT_EQ(locations.size(), scale_factor * num_threads);
 

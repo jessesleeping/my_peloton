@@ -143,6 +143,8 @@ std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqual
     DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
     my_assert(data_node != NULL);
     buffer_result.buffer.clear();
+    buffer_result.smo_node = nullptr;
+    buffer_result.smo_type = NONE;
     data_node->Buffer(buffer_result);
     next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
