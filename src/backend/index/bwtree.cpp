@@ -718,7 +718,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     while (left_node->GetNext() != nullptr) {
       left_node = left_node->GetNext();
     }
-    typename NodeType::BaseNodeType *left_base_node = static_cast<typename NodeType::BaseNodeType *>(left_node);
+    typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
     my_assert(left_base_node != nullptr);
     left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
   }
