@@ -45,7 +45,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 //==----------------------------------
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(KeyType k, bool fw, bool eq, BWTree &bwTree_, KeyComparator kcmp):
-  buffer_result(kcmp, bwTree_.MIN_KEY),
+  buffer_result(kcmp, bwTree_.MIN_KEY, true),
   iterator_cur(),
   iterator_end(),
   next_pid(INVALID_PID),
@@ -92,7 +92,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::Scanner(BWTree &bwTree_, KeyComparator kcmp):
-  buffer_result(kcmp, bwTree_.MIN_KEY),
+  buffer_result(kcmp, bwTree_.MIN_KEY, true),
   iterator_cur(),
   iterator_end(),
   next_pid(INVALID_PID),
@@ -142,9 +142,19 @@ std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqual
     // make new buffer
     DataNode *data_node = dynamic_cast<DataNode*>(bwTree.node_table.GetNode(next_pid)); // ugly assumption
     my_assert(data_node != NULL);
+
+    // update the buffer start key
+    if (buffer_result.buffer.size() != 0) {
+      // Assume we do forward scannig
+      my_assert(forward);
+      buffer_result.key_lower_bound = buffer_result.buffer.rbegin()->first;
+    }
+
+    // No need to reset next/pid cuz they are write-only
     buffer_result.buffer.clear();
     buffer_result.smo_node = nullptr;
     buffer_result.smo_type = NONE;
+
     data_node->Buffer(buffer_result);
     next_pid = (forward) ? buffer_result.next_pid : buffer_result.prev_pid;
 
@@ -201,7 +211,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   PID new_pid = next_pid++;
   if (new_pid >= table.capacity()) {
     LOG_ERROR("BWTree mapping table is full, can't insert new node");
-    assert(false);
+    my_assert(false);
     return INVALID_PID;
   }
 
@@ -402,7 +412,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // Search from the merged content
     auto itr = this->merged_content->upper_bound(target);
     // We must find something
-    assert(itr != this->merged_content->end());
+    my_assert(itr != this->merged_content->end());
     auto next = --itr;
     PID next_pid = next->second;
     Node *node = Node::bwTree.node_table.GetNode(next_pid);
@@ -625,7 +635,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   PID left_pid = INVALID_PID;
 
   // Get the buffer
-  BufferResult<NodeType> buffer_result(this->key_comp, state.begin_key);
+  BufferResult<NodeType> buffer_result(this->key_comp, state.begin_key, false);
   node->Buffer(buffer_result);
 
   LOG_DEBUG("Buffer result is of size %ld", buffer_result.buffer.size());
@@ -697,6 +707,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     new_node = new_base;
 
     if(split_itr != buffer_result.buffer.begin()) {
+      // Really need split
       new_base_from_split = new typename NodeType::BaseNodeType(*this);
       new_base_from_split->GetContent().insert(buffer_result.buffer.begin(), split_itr);
       new_base_from_split->SetBrothers(buffer_result.prev_pid, node->Node::GetPID());
@@ -709,18 +720,21 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       // create a DataSplitDelta for the old node
       split_delta = new typename NodeType::SplitDeltaType(*this, new_base, split_itr->first, left_pid);
       new_node = split_delta;
+
+      if (buffer_result.prev_pid != INVALID_PID) {
+        // update the right sibling of the left node
+        LOG_DEBUG("\tprevious left node PID = %d", (int) buffer_result.prev_pid);
+        Node *left_node = node_table.GetNode(buffer_result.prev_pid);
+        while (left_node->GetNext() != nullptr) {
+          left_node = left_node->GetNext();
+        }
+        typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
+        my_assert(left_base_node != nullptr);
+        left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+      }
     }
     // set the old node
     new_base->SetBrothers(left_pid, buffer_result.next_pid);
-
-    // update the right sibling of the left node
-    Node *left_node = node_table.GetNode(buffer_result.prev_pid);
-    while (left_node->GetNext() != nullptr) {
-      left_node = left_node->GetNext();
-    }
-    typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
-    my_assert(left_base_node != nullptr);
-    left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
   }
 // else if (buffer_result.buffer.size() < MIN_PAGE_SIZE) {
 //    // TODO: Implement Merge
@@ -765,11 +779,11 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     auto itr = children.begin();
     // Find the first one that is not less than key range's lower bound
     for (; itr != children.end(); ++itr) {
-      // TODO: according to our design, the content in a splited node is always consistent, because it has been cosolidated before being splited
       if (!Node::bwTree.key_comp(itr->first, result.key_lower_bound)) {
         break;
       }
     }
+    my_assert(result.is_scan_buffer == false);
     my_assert(itr != children.end());
     // insert to result buffer
     result.buffer.insert(itr, children.end());
@@ -832,7 +846,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   this->next->Buffer(result);
   // Find the merged range and delete from the map
   auto end_key_itr = result.buffer.find(this->end_k);
-  assert(end_key_itr != result.buffer.end());
+  my_assert(end_key_itr != result.buffer.end());
   PID merged_to = end_key_itr->second;
   // Erase merged ranges
   result.buffer.erase(this->begin_k);
@@ -881,12 +895,12 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   auto itr = items.begin();
   // Find the first one that is not less than key range's lower bound
   for (; itr != items.end(); ++itr) {
-    // TODO: according to our design, the content in a splited node is always consistent, because it has been cosolidated before being splited
     if (!Node::bwTree.key_comp(itr->first, result.key_lower_bound)) {
       break;
     }
   }
-  my_assert(itr != items.end());
+  // For scan buffer, we may endup buffer nothing here, so the assert is not reasonable
+  // my_assert(itr != items.end());
   // insert to result buffer
   result.buffer.insert(itr, items.end());
   LOG_DEBUG("LeafNode buffer size %d", (int)result.buffer.size());
@@ -922,8 +936,18 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::DataSplitDelta::Buffer(BufferResult<DataNode> &result) {
   LOG_DEBUG("Buffer split delta");
-  // see if we observe an incomplete split
-  if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
+
+  // Check if it's scan buffer
+  if (result.is_scan_buffer) {
+    LOG_DEBUG("Buffer for scan, go to splited node first");
+    // buffer the splited node and filter it with the start_key
+    DataNode *splited_left = dynamic_cast<DataNode *>(Node::bwTree.node_table.GetNode(split_pid));
+    my_assert(splited_left != nullptr);
+    splited_left->Buffer(result);
+    // Ignore unfinished SMO in the left splited node because the buffering we are doing is for scan, not consolidation
+
+  } // else check uncomplete SMO for consolidate buffer
+  else if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
     my_assert(result.smo_type == NONE); // We can only have one SMO in the chain
     result.smo_type = SPLIT;

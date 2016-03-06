@@ -67,10 +67,10 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 1;
+      const static size_t DELTA_CHAIN_LIMIT = 4;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 10240000;
-      const static size_t MIN_PAGE_SIZE = 256;
+      const static size_t MAX_PAGE_SIZE = 16;
+      const static size_t MIN_PAGE_SIZE = 4;
       class Iterator;
 
       template <typename NodeType>
@@ -82,12 +82,13 @@ namespace peloton {
 
         smo_t smo_type;
         NodeType *smo_node;
+        bool is_scan_buffer;
 
         typedef typename NodeType::ContentType::iterator iterator;
 
-        BufferResult(KeyComparator kcmp, KeyType begin)
+        BufferResult(KeyComparator kcmp, KeyType begin, bool for_scan)
           :buffer(kcmp),/* next_pid(INVALID_PID), prev_pid(INVALID_PID),*/
-           key_lower_bound(begin), smo_type(NONE), smo_node(nullptr) {}
+           key_lower_bound(begin), smo_type(NONE), smo_node(nullptr), is_scan_buffer(for_scan) {}
       };
 
     private:
