@@ -894,7 +894,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
    */
   auto itr = items.begin();
   // Find the first one that is not less than key range's lower bound
-  for (; itr != items.end(); ++itr) {
+  for (; itr != items.end() && result.is_scan_buffer; ++itr) {
     if (!Node::bwTree.key_comp(itr->first, result.key_lower_bound)) {
       break;
     }
@@ -943,9 +943,16 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
     // buffer the splited node and filter it with the start_key
     DataNode *splited_left = dynamic_cast<DataNode *>(Node::bwTree.node_table.GetNode(split_pid));
     my_assert(splited_left != nullptr);
-    splited_left->Buffer(result);
-    // Ignore unfinished SMO in the left splited node because the buffering we are doing is for scan, not consolidation
 
+    BufferResult<DataNode> split_result(Node::bwTree.key_comp, result.key_lower_bound, true);
+    splited_left->Buffer(split_result);
+    // Ignore unfinished SMO in the left splited node because the buffering we are doing is for scan, not consolidation
+    // Filter out
+    auto split_buffer_itr = split_result.buffer.upper_bound(result.key_lower_bound);
+    if (split_buffer_itr != split_result.buffer.end() && ++split_buffer_itr != split_result.buffer.end()) {
+      result.buffer.insert(split_buffer_itr,split_result.buffer.end());
+    }
+    LOG_DEBUG("Buffer size after returning from the splited left node: %d", (int)result.buffer.size());
   } // else check uncomplete SMO for consolidate buffer
   else if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
@@ -1022,6 +1029,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     my_assert(dt_node->GetPID() == old_node->GetPID());
     bool res = node_table.UpdateNode(old_node, (Node *) delta);
     if(!res){
+      LOG_DEBUG("insert kv fail");
       delete delta;
     }else{
       // try consolidate root
