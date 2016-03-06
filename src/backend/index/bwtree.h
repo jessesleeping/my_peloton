@@ -33,6 +33,7 @@ namespace peloton {
   } \
   assert((cond)); \
 }while(0) \
+
     // Look up the stx btree interface for background.
     // peloton/third_party/stx/btree.h
     template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -67,9 +68,9 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 4;
+      const static size_t DELTA_CHAIN_LIMIT = 16;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 16;
+      const static size_t MAX_PAGE_SIZE = 512;
       const static size_t MIN_PAGE_SIZE = 4;
       class Iterator;
 

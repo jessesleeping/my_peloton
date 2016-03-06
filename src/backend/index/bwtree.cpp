@@ -658,6 +658,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
         // Complete SMO failed
         printf("\tFail in finishing SPLIT\n");
         return;
+      } else {
+        printf("\tfinishing SPLIT success\n");
       }
       break;
     case MERGE:
@@ -673,7 +675,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   LOG_DEBUG("\tContinue consolidating");
 
   // Check if need split/merge
-  printf("do consolidate, buffer size %d\n", (int)buffer_result.buffer.size());
+  printf("do consolidate, buffer size %d, prev = %d, next = %d\n", (int)buffer_result.buffer.size(), (int)buffer_result.prev_pid, (int)buffer_result.next_pid);
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
     LOG_DEBUG("\tDo split");
     // Do split
@@ -686,6 +688,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
     new_base = new typename NodeType::BaseNodeType(*this);
     new_base->SetPID(node->GetPID());
+
 
 
     auto split_itr = buffer_result.buffer.begin();
@@ -730,7 +733,16 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
         }
         typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
         my_assert(left_base_node != nullptr);
-        left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+        if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
+          LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
+          // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
+          // Check if others had already consolidated and changed the right sibling of left node
+          if (ln->next == node->Node::GetPID()) {
+            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+          }
+        } else {
+          left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+        }
       }
     }
     // set the old node
@@ -750,6 +762,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
   // Install the consolidated node/chain
   if (node_table.UpdateNode(node, new_node)) {
+    // LOG_DEBUG("SET pid %d old node left to be %d", (int)new_base->Node::GetPID(), (int)new_base->prev);
     // install success
     if (new_base_from_split != nullptr) {
       // Try to install delta
@@ -762,6 +775,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // TODO: GC the old node
     gcManager.AddGcNode(node);
   } else {
+    LOG_DEBUG("Consolidate failed when install consolidated node");
     // install failed
     // TODO: GC the new_node_from_split if not null
     // TODO: free the new_node, potentially a chain
@@ -903,7 +917,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   // my_assert(itr != items.end());
   // insert to result buffer
   result.buffer.insert(itr, items.end());
-  LOG_DEBUG("LeafNode buffer size %d", (int)result.buffer.size());
+  LOG_DEBUG("LeafNode buffer size %d, prev = %d, next = %d", (int)result.buffer.size(), (int)result.prev_pid, (int)result.next_pid);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -965,8 +979,9 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   }
 
   next->Buffer(result);
+  assert(result.prev_pid == this->split_pid);
   // Set the prev pid
-  result.prev_pid = this->pid;
+  // result.prev_pid = this->pid;
   LOG_DEBUG("DataSplitDelta buffer size %d", (int)result.buffer.size());
 };
 
