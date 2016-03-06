@@ -70,7 +70,7 @@ namespace peloton {
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DELTA_CHAIN_LIMIT = 16;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 512;
+      const static size_t MAX_PAGE_SIZE = 128;
       const static size_t MIN_PAGE_SIZE = 4;
       class Iterator;
 
@@ -157,10 +157,12 @@ namespace peloton {
 
         Node *next = head->GetNext();
         while(next){
+          printf("free node head %p\n", head);
           delete head;
           head = next;
           next = next->GetNext();
         }
+        printf("free node head %p\n", head);
         delete head;
       }
       template <typename NodeType>
@@ -589,7 +591,7 @@ namespace peloton {
               kv = epoch_table.erase(kv);
             }
             map_lock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(8));
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
           }
 
           printf("exit background thread\n");
@@ -603,7 +605,6 @@ namespace peloton {
           EpochInfo() : ref(0), gc_nodes(BWTree::NODE_TABLE_DFT_CAPACITY), idx(0){ }
           ~EpochInfo() {
             for(int i = 0; i < idx; i++){
-              printf("free node head %p\n", gc_nodes[i]);
               BWTree::FreeNodeChain(gc_nodes[i]);
             }
           }

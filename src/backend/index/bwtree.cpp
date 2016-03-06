@@ -198,11 +198,11 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node * old_node, Node *new_node)
 {
-  my_assert(old_node);
-  my_assert(new_node);
-  my_assert(old_node->GetPID() == new_node->GetPID());
-  my_assert(old_node->GetPID() != INVALID_PID);
-  return table[old_node->pid].compare_exchange_strong(old_node, new_node);
+  // my_assert(old_node);
+  // my_assert(new_node);
+  // my_assert(old_node->GetPID() == new_node->GetPID());
+  // my_assert(old_node->GetPID() != INVALID_PID);
+  return table[old_node->pid].compare_exchange_weak(old_node, new_node);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -618,11 +618,22 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
-  printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
+
   if(node->Node::GetPID() == 0){
     LOG_DEBUG("\tConsolidate root");
     return;
   }
+
+  if( node_table.GetNode(node->Node::GetPID()) != node){
+    // unnecessary consolidate
+    return;
+  }
+
+  if ( (node->Node::GetDepth() - DELTA_CHAIN_LIMIT) % 5 != 0){
+    return;
+  }
+
+  printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
 
   typename NodeType::SplitDeltaType *split_delta = nullptr;
   NodeType *new_node = nullptr;
@@ -770,7 +781,12 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       my_assert(struct_node != nullptr);
       my_assert(left_pid == new_base_from_split->GetPID());
-      InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
+      auto ins_res = InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
+      if(ins_res){
+        printf("finishing SPLIT success\n");
+      }else{
+        printf("finishing SPLIT fail\n");
+      }
     }
     // TODO: GC the old node
     gcManager.AddGcNode(node);
@@ -781,6 +797,11 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // TODO: free the new_node, potentially a chain
     // TODO: memory leak here
     FreeNodeChain(new_node);
+    if(new_base_from_split){
+      auto del = node_table.UpdateNode(new_base_from_split, nullptr);
+      my_assert(del);
+      FreeNodeChain(new_base_from_split);
+    }
   }
 }
 
