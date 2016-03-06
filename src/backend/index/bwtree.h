@@ -68,9 +68,9 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 16;
+      const static size_t DELTA_CHAIN_LIMIT = 1;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 512;
+      const static size_t MAX_PAGE_SIZE = 3;
       const static size_t MIN_PAGE_SIZE = 4;
       class Iterator;
 
@@ -95,6 +95,7 @@ namespace peloton {
     private:
       struct PathState {
 //        std::vector<PID> pid_path;
+      public:
         std::vector<Node *> node_path;
 
         KeyType begin_key;

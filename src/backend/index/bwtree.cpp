@@ -619,10 +619,12 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
   printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
-  if(node->Node::GetPID() == 0){
-    LOG_DEBUG("\tConsolidate root");
-    return;
-  }
+//  if(node->Node::GetPID() == 0){
+//    LOG_DEBUG("\tConsolidate root");
+//    // First get the buffer
+//
+//    return;
+//  }
 
   typename NodeType::SplitDeltaType *split_delta = nullptr;
   NodeType *new_node = nullptr;
@@ -646,6 +648,9 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       LOG_DEBUG("\tNot any unfinished SMO");
       break;
     case SPLIT:
+      if (node->Node::GetPID() == 0) {
+        my_assert(false);
+      }
       LOG_DEBUG("\tUnfinished SPLIT");
       my_assert(buffer_result.smo_node != nullptr);
       split_delta = dynamic_cast<typename NodeType::SplitDeltaType *>(buffer_result.smo_node);
@@ -676,7 +681,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
   // Check if need split/merge
   printf("do consolidate, buffer size %d, prev = %d, next = %d\n", (int)buffer_result.buffer.size(), (int)buffer_result.prev_pid, (int)buffer_result.next_pid);
-  if (buffer_result.buffer.size() > MAX_PAGE_SIZE) {
+  if (buffer_result.buffer.size() > MAX_PAGE_SIZE && !node->Node::GetPID() == 0) {
     LOG_DEBUG("\tDo split");
     // Do split
     // Handle root consolidate
@@ -688,8 +693,6 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
     new_base = new typename NodeType::BaseNodeType(*this);
     new_base->SetPID(node->GetPID());
-
-
 
     auto split_itr = buffer_result.buffer.begin();
     int i = 0;
@@ -764,6 +767,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   if (node_table.UpdateNode(node, new_node)) {
     // LOG_DEBUG("SET pid %d old node left to be %d", (int)new_base->Node::GetPID(), (int)new_base->prev);
     // install success
+    LOG_DEBUG("PID %d Consolidate success", (int)new_node->Node::GetPID());
     if (new_base_from_split != nullptr) {
       // Try to install delta
       my_assert(state.node_path.size() >= 2);
@@ -775,7 +779,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // TODO: GC the old node
     gcManager.AddGcNode(node);
   } else {
-    LOG_DEBUG("Consolidate failed when install consolidated node");
+    LOG_DEBUG("PID %d Consolidate failed when install consolidated node", (int)new_node->Node::GetPID());
     // install failed
     // TODO: GC the new_node_from_split if not null
     // TODO: free the new_node, potentially a chain
@@ -1040,7 +1044,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     my_assert(dt_node);
 
     auto old_node = dt_node;
-    auto delta = new InsertDelta(*this, k, v, (DataNode *) old_node);
+    auto delta = new InsertDelta(*this, k, v, old_node);
     my_assert(dt_node->GetPID() == old_node->GetPID());
     bool res = node_table.UpdateNode(old_node, (Node *) delta);
     if(!res){

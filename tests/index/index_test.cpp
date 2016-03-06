@@ -342,8 +342,8 @@ std::unique_ptr<index::Index> index(BuildIndex());
 
 // Parallel Test
 // High thread count will result in not enough memory
-size_t num_threads = 56;
-size_t scale_factor = 100;
+size_t num_threads = 1;
+size_t scale_factor = 10;
 LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
 locations = index->ScanAllKeys();
 EXPECT_EQ(locations.size(), scale_factor * num_threads);
