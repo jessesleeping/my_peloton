@@ -75,7 +75,6 @@ index::Index *BuildIndex() {
   return index;
 }
 
-
 TEST(IndexTests, BasicTest) {
   auto pool = TestingHarness::GetInstance().GetTestingPool();
   std::vector<ItemPointer> locations;
@@ -302,55 +301,56 @@ TEST(IndexTests, MultiThreadedInsertTest) {
 
   delete tuple_schema;
 }
-/*
-TEST(IndexTests, MultiThreadedInsertDeleteTest) {
-auto pool = TestingHarness::GetInstance().GetTestingPool();
-std::vector<ItemPointer> locations;
 
-// INDEX
-std::unique_ptr<index::Index> index(BuildIndex());
+//TEST(IndexTests, MultiThreadedInsertDeleteTest) {
+//auto pool = TestingHarness::GetInstance().GetTestingPool();
+//std::vector<ItemPointer> locations;
+//
+//// INDEX
+//std::unique_ptr<index::Index> index(BuildIndex());
+//
+//// Parallel Test
+//size_t num_threads = 200;
+//size_t scale_factor = 1;
+//LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
+//LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
+//locations = index->ScanAllKeys();
+//std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
+//std::unique_ptr<storage::Tuple> keynonce(new storage::Tuple(key_schema, true));
+//
+//keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
+//keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
+//
+//key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
+//key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
+//
+//locations = index->ScanKey(keynonce.get());
+//
+//locations = index->ScanKey(key0.get());
+//
+//delete tuple_schema;
+//}
 
-// Parallel Test
-size_t num_threads = 200;
-size_t scale_factor = 1;
-LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
-LaunchParallelTest(num_threads, DeleteTest, index.get(), pool, scale_factor);
-LaunchParallelTest(num_threads, InsertTest, index.get(), pool, scale_factor);
-locations = index->ScanAllKeys();
-std::unique_ptr<storage::Tuple> key0(new storage::Tuple(key_schema, true));
-std::unique_ptr<storage::Tuple> keynonce(new storage::Tuple(key_schema, true));
-
-keynonce->SetValue(0, ValueFactory::GetIntegerValue(1000), pool);
-keynonce->SetValue(1, ValueFactory::GetStringValue("f"), pool);
-
-key0->SetValue(0, ValueFactory::GetIntegerValue(100), pool);
-key0->SetValue(1, ValueFactory::GetStringValue("a"), pool);
-
-locations = index->ScanKey(keynonce.get());
-
-locations = index->ScanKey(key0.get());
-
-delete tuple_schema;
-}
-*/
 TEST(IndexTests, MultiThreadedInsertRandomTest) {
-auto pool = TestingHarness::GetInstance().GetTestingPool();
-std::vector<ItemPointer> locations;
+  auto pool = TestingHarness::GetInstance().GetTestingPool();
+  std::vector<ItemPointer> locations;
 
-// INDEX
-std::unique_ptr<index::Index> index(BuildIndex());
+  // INDEX
+  std::unique_ptr<index::Index> index(BuildIndex());
 
-// Parallel Test
-// High thread count will result in not enough memory
-size_t num_threads = 1;
-size_t scale_factor = 10;
-LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
-locations = index->ScanAllKeys();
-EXPECT_EQ(locations.size(), scale_factor * num_threads);
+  // Parallel Test
+  // High thread count will result in not enough memory
+  size_t num_threads = 1;
+  size_t scale_factor = 10;
+  LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
+  locations = index->ScanAllKeys();
+  locations = index->ScanAllKeys();
+  EXPECT_EQ(locations.size(), scale_factor * num_threads);
 
 
 
-delete tuple_schema;
+  delete tuple_schema;
 }
 
 /*

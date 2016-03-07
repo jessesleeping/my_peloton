@@ -583,7 +583,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
                                   split_pid);
   }
 
-
   if(Node::bwTree.key_comp(target, split_key)){
     // target < split
     // jump
@@ -618,7 +617,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
-  printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
+  LOG_DEBUG("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
 //  if(node->Node::GetPID() == 0){
 //    LOG_DEBUG("\tConsolidate root");
 //    // First get the buffer
@@ -680,7 +679,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   LOG_DEBUG("\tContinue consolidating");
 
   // Check if need split/merge
-  printf("do consolidate, buffer size %d, prev = %d, next = %d\n", (int)buffer_result.buffer.size(), (int)buffer_result.prev_pid, (int)buffer_result.next_pid);
+  LOG_DEBUG("PID %d do consolidate, buffer size %d, prev = %d, next = %d\n", (int)node->Node::GetPID(), (int)buffer_result.buffer.size(), (int)buffer_result.prev_pid, (int)buffer_result.next_pid);
   if (buffer_result.buffer.size() > MAX_PAGE_SIZE && !node->Node::GetPID() == 0) {
     LOG_DEBUG("\tDo split");
     // Do split
@@ -814,9 +813,13 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::InnerInsertDelta::Buffer(BufferResult<StructNode> &result) {
+  LOG_DEBUG("Buffer InnerInsertDelta %d", (int)result.buffer.size());
   next->Buffer(result);
   // apply insert
-  result.buffer.emplace(begin_k, sep_pid);
+  // The begin_k will point to the new node, end_k will point to the old node
+  result.buffer[end_k] = result.buffer[begin_k];
+  result.buffer[begin_k] = sep_pid;
+  // THIS IS WRONG: result.buffer.emplace(begin_k, sep_pid);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
