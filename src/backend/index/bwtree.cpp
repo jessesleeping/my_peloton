@@ -546,7 +546,12 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
                                   split_pid);
   }
   if(Node::bwTree.key_comp(target, split_key)){
+    // Here we jump to the sidelink, should pop self and push the sidelink node
     auto sibling = Node::bwTree.node_table.GetNode(split_pid);
+
+    auto old_back = path_state.node_path.back();
+    path_state.node_path.pop_back();
+    path_state.node_path.push_back(sibling);
 
     res = sibling->Search(target, forwards, path_state);
     if (sibling->Node::GetDepth() > DELTA_CHAIN_LIMIT) {
@@ -555,6 +560,8 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       Node::bwTree.Consolidate<StructNode>(node, path_state);
     }
 
+    path_state.node_path.pop_back();
+    path_state.node_path.push_back(old_back);
   } else {
     path_state.begin_key = split_key;
     res = next->Search(target, forwards, path_state);
@@ -589,6 +596,9 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // target < split
     // jump
     auto sibling = Node::bwTree.node_table.GetNode(split_pid);
+    auto old_back = path_state.node_path.back();
+    path_state.node_path.pop_back();
+    path_state.node_path.push_back(sibling);
 
     res = sibling->Search(target, forwards, path_state);
 
@@ -598,6 +608,9 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
       // TODO: check if the path_state key range is OK
       Node::bwTree.Consolidate<DataNode>(node, path_state);
     }
+
+    path_state.node_path.pop_back();
+    path_state.node_path.push_back(old_back);
   } else {
     // continue the seach in the original chain
     path_state.begin_key = split_key;
@@ -763,7 +776,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       my_assert(struct_node != nullptr);
       my_assert(left_pid == new_base_from_split->GetPID());
-      InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
+      InstallSeparator(struct_node, state.begin_key, split_delta->split_key, left_pid);
     }
     // TODO: GC the old node
     gcManager.AddGcNode(node);
@@ -798,7 +811,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   }
 
   my_assert(result.is_scan_buffer == false);
-  my_assert(itr != children.end());
+//  my_assert(itr != children.end());
   // insert to result buffer
   result.buffer.insert(itr, children.end());
 
@@ -1048,18 +1061,18 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     auto delta = new InsertDelta(*this, k, v, old_node);
     my_assert(dt_node->GetPID() == old_node->GetPID());
     bool res = node_table.UpdateNode(old_node, (Node *) delta);
+    // try consolidate root
+    if(root->GetDepth() > DELTA_CHAIN_LIMIT){
+      Consolidate<StructNode>((StructNode *)root, path_state);
+    }
     if(!res){
       LOG_DEBUG("insert kv fail");
       delete delta;
     }else{
-      // try consolidate root
-      LOG_DEBUG("insert kv ok, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
-      if(root->GetDepth() > DELTA_CHAIN_LIMIT){
-        Consolidate<StructNode>((StructNode *)root, path_state);
-      }
-      LOG_DEBUG("Insert a kv pair success");
+      LOG_DEBUG("insert kv success, res depth %d\n", (int)node_table.GetNode(dt_node->GetPID())->GetDepth());
       return true;
     }
+
   }
 }
 
@@ -1087,6 +1100,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       LOG_DEBUG("Consolidate root fail");
       FreeNodeChain(new_root);
     } else {
+      gcManager.AddGcNode(root);
       LOG_DEBUG("Consolidate root success, new root size: %d", (int)buffer_size);
     }
   } else if (buffer_size > MAX_PAGE_SIZE) {
@@ -1128,12 +1142,11 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       if (!success) {
         LOG_DEBUG("Split root failed");
         // TODO: GC
-        gcManager.AddGcNode(node1);
-        gcManager.AddGcNode(node2);
         FreeNodeChain(new_root);
       } else {
         LOG_DEBUG("Split root success, new root size: %d, left[%d] size: %d, right[%d] size: %d",
                   (int)new_root->GetContent().size(),(int)node1->Node::GetPID(), (int)node1->GetContent().size(), (int)node2->Node::GetPID(), (int)node2->GetContent().size());
+        gcManager.AddGcNode(root);
       }
       // Add the separator delta
 //      InstallSeparator(new_root, MIN_KEY, split_key, pid1);

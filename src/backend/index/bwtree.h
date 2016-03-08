@@ -70,7 +70,7 @@ namespace peloton {
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
       const static size_t DELTA_CHAIN_LIMIT = 0;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 3;
+      const static size_t MAX_PAGE_SIZE = 1;
       const static size_t MIN_PAGE_SIZE = 0;
       class Iterator;
 
@@ -111,7 +111,7 @@ namespace peloton {
       void Init();
       /** @brief Insert a key/val pair from the bwtree */
       bool InsertKV(const KeyType &k, const ValueType &v);
-      /** @brief Delete a key/val pair from the bwtree */
+      /** @brief Delete xa key/val pair from the bwtree */
       bool DeleteKV(const KeyType &k, const ValueType &v);
       /** @brief Scan the BwTree given a key and direction */
       std::unique_ptr<Scanner> Scan(const KeyType &key, bool forward, bool equality);
@@ -133,6 +133,7 @@ namespace peloton {
        * @return true the install succeed, false otherwise.
        */
       bool InstallSeparator(StructNode *node, KeyType begin_key, KeyType end_key, PID new_pid) {
+        my_assert(key_comp(begin_key, end_key));
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         bool res = node_table.UpdateNode(node, iid);
         if(!res){ delete iid;}
