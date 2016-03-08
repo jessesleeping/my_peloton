@@ -198,11 +198,11 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::UpdateNode(Node * old_node, Node *new_node)
 {
-  my_assert(old_node);
-  my_assert(new_node);
-  my_assert(old_node->GetPID() == new_node->GetPID());
-  my_assert(old_node->GetPID() != INVALID_PID);
-  return table[old_node->pid].compare_exchange_strong(old_node, new_node);
+  // my_assert(old_node);
+  // my_assert(new_node);
+  // my_assert(old_node->GetPID() == new_node->GetPID());
+  // my_assert(old_node->GetPID() != INVALID_PID);
+  return table[old_node->pid].compare_exchange_weak(old_node, new_node);
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -629,11 +629,22 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
-  LOG_DEBUG("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
+
   if(node->Node::GetPID() == 0){
     this->ConsolidateRoot((StructNode *)node, state);
     return;
   }
+
+  if( node_table.GetNode(node->Node::GetPID()) != node){
+    // unnecessary consolidate
+    return;
+  }
+
+  if ( (node->Node::GetDepth() - DELTA_CHAIN_LIMIT) % 5 != 0){
+    return;
+  }
+
+  printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
 
   typename NodeType::SplitDeltaType *split_delta = nullptr;
   NodeType *new_node = nullptr;
@@ -787,6 +798,11 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // TODO: free the new_node, potentially a chain
     // TODO: memory leak here
     FreeNodeChain(new_node);
+    if(new_base_from_split){
+      auto del = node_table.UpdateNode(new_base_from_split, nullptr);
+      my_assert(del);
+      FreeNodeChain(new_base_from_split);
+    }
   }
 }
 
@@ -1080,7 +1096,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ConsolidateRoot(StructNode *root, __attribute__ ((unused))PathState &state)
 {
-  assert(root->GetPID() == 0);
+  my_assert(root->GetPID() == 0);
   BufferResult<StructNode> buffer_result(this->key_comp, MIN_KEY, false);
   LOG_DEBUG("Buffer root");
   root->Buffer(buffer_result);
@@ -1142,6 +1158,12 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       if (!success) {
         LOG_DEBUG("Split root failed");
         // TODO: GC
+        success = node_table.UpdateNode(node1, nullptr);
+        my_assert(success);
+        success = node_table.UpdateNode(node2, nullptr);
+        my_assert(success);
+        FreeNodeChain(node1);
+        FreeNodeChain(node2);
         FreeNodeChain(new_root);
       } else {
         LOG_DEBUG("Split root success, new root size: %d, left[%d] size: %d, right[%d] size: %d",
@@ -1160,6 +1182,9 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       auto success = node_table.UpdateNode(root, new_root);
       if (!success)
         FreeNodeChain(new_root);
+      else{
+        gcManager.AddGcNode(root);
+      }
     }
   } else {
     // Need merge

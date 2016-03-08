@@ -159,10 +159,12 @@ namespace peloton {
 
         Node *next = head->GetNext();
         while(next){
+          printf("free node head %p\n", head);
           delete head;
           head = next;
           next = next->GetNext();
         }
+        printf("free node head %p\n", head);
         delete head;
       }
       template <typename NodeType>
@@ -526,7 +528,7 @@ namespace peloton {
 
       class GcManager{
       public:
-        GcManager() : stop(false), global_epoch(0){
+        GcManager() : stop(false), epoch_table(TABLE_SIZE), end(0), global_epoch(0){
           epoch_table[global_epoch] = new EpochInfo;
           daemon_thread = std::thread(&GcManager::BackGroundInc, this);
         };
@@ -538,60 +540,56 @@ namespace peloton {
           daemon_thread.join();
 
           // delete remaining node
-          for(auto& kv : epoch_table){
-            delete kv.second;
+          while(end != global_epoch){
+            delete epoch_table[end % TABLE_SIZE];
+            end++;
           }
+          delete epoch_table[end % TABLE_SIZE];
         }
 
         size_t EnterEpoch() {
-          map_lock.lock();
-          auto current_epoch = global_epoch;
-          my_assert(epoch_table.count(current_epoch));
+          auto current_epoch = global_epoch % TABLE_SIZE;
           epoch_table[current_epoch]->AddRef();
 
-          map_lock.unlock();
           return current_epoch;
         }
 
         void ExitEpoch(size_t epoch) {
-          map_lock.lock();
-          epoch_table[epoch]->DecRef();
-          map_lock.unlock();
+          epoch_table[epoch % TABLE_SIZE]->DecRef();
         }
 
         // add a gc node to current epoch
         void AddGcNode(Node *node){
-          map_lock.lock();
-          auto current_epoch = global_epoch;
+          auto current_epoch = global_epoch % TABLE_SIZE;
           epoch_table[current_epoch]->AddGcNode(node);
-          map_lock.unlock();
         }
 
 
         void BackGroundInc(){
           while(!stop){
-            map_lock.lock();
             printf("add epoch %ld\n", global_epoch);
-            // first insert
-            epoch_table[global_epoch + 1] = new EpochInfo;
-            // then inc
-            global_epoch++;
+
+            // global_epoch++ only when we have free slots,
+            auto new_epoch = (global_epoch + 1) % TABLE_SIZE;
+            if(new_epoch != end % TABLE_SIZE) {
+              epoch_table[new_epoch] = new EpochInfo;
+              global_epoch++;
+            }
 
             // do gc
-            for(auto kv = epoch_table.begin(); kv != epoch_table.end();){
+            while(true){
 
-              //
-              if(kv->first + 2 >= global_epoch || kv->second->GetRef() != 0){
+              auto idx = end % TABLE_SIZE;
+              // only free epoch whose ref == 0
+              // also, keep the last few epochs to avoid race
+              if(epoch_table[idx]->GetRef() != 0 || end + 3 >= global_epoch){
                 break;
               }
-
-              printf("gc epoch %ld\n", kv->first);
-              // ref == 0, delete and erase
-              delete kv->second;
-              kv = epoch_table.erase(kv);
+              delete epoch_table[idx];
+              end++;
             }
-            map_lock.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(8));
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
           }
 
           printf("exit background thread\n");
@@ -605,7 +603,6 @@ namespace peloton {
           EpochInfo() : ref(0), gc_nodes(BWTree::NODE_TABLE_DFT_CAPACITY), idx(0){ }
           ~EpochInfo() {
             for(int i = 0; i < idx; i++){
-              printf("free node head %p\n", gc_nodes[i]);
               BWTree::FreeNodeChain(gc_nodes[i]);
             }
           }
@@ -628,12 +625,15 @@ namespace peloton {
         };
         std::mutex map_lock;
         bool stop;
-        std::map<size_t, EpochInfo *>epoch_table;
+        std::vector<EpochInfo *>epoch_table;
+        size_t end;
         size_t global_epoch;
         std::thread daemon_thread;
+        const static size_t TABLE_SIZE = 65536;
       };
     private:
       /** DATA FIELD **/
+
       KeyComparator key_comp;
       KeyEqualityChecker key_equals;
       ValueEqualityChecker val_equals;
