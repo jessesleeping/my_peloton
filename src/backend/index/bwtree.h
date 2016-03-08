@@ -71,7 +71,7 @@ namespace peloton {
       const static size_t DELTA_CHAIN_LIMIT = 0;
       // const static size_t SPLIT_LIMIT = 128;
       const static size_t MAX_PAGE_SIZE = 3;
-      const static size_t MIN_PAGE_SIZE = 4;
+      const static size_t MIN_PAGE_SIZE = 0;
       class Iterator;
 
       template <typename NodeType>
@@ -120,7 +120,7 @@ namespace peloton {
        * @brief Special case split root procedure
        * @param root The consolidated root node to be splited
        */
-      void SplitRoot(InnerNode *root);
+      void ConsolidateRoot(StructNode *root, PathState &state);
       /** @brief Used by bwtree_index to set the lowest key possible */
       void SetMinKey(KeyType min_key) { this->MIN_KEY = min_key; }
     private:
