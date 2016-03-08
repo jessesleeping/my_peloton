@@ -1088,7 +1088,7 @@ bool BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ConsolidateRoot(StructNode *root, __attribute__ ((unused))PathState &state)
 {
-  assert(root->GetPID() == 0);
+  my_assert(root->GetPID() == 0);
   BufferResult<StructNode> buffer_result(this->key_comp, MIN_KEY, false);
   LOG_DEBUG("Buffer root");
   root->Buffer(buffer_result);
@@ -1108,7 +1108,8 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       LOG_DEBUG("Consolidate root fail");
       FreeNodeChain(new_root);
     } else {
-      LOG_DEBUG("Consolidate root success, new root size: %d", (int)buffer_size);
+      LOG_DEBUG("Consolidate root success, new root size: %d", (int) buffer_size);
+      gcManager.AddGcNode(root);
     }
   } else if (buffer_size > MAX_PAGE_SIZE) {
     // Need split
@@ -1149,8 +1150,12 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       if (!success) {
         LOG_DEBUG("Split root failed");
         // TODO: GC
-        gcManager.AddGcNode(node1);
-        gcManager.AddGcNode(node2);
+        success = node_table.UpdateNode(node1, nullptr);
+        my_assert(success);
+        success = node_table.UpdateNode(node2, nullptr);
+        my_assert(success);
+        FreeNodeChain(node1);
+        FreeNodeChain(node2);
         FreeNodeChain(new_root);
       } else {
         LOG_DEBUG("Split root success, new root size: %d, left[%d] size: %d, right[%d] size: %d",
@@ -1168,6 +1173,9 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
       auto success = node_table.UpdateNode(root, new_root);
       if (!success)
         FreeNodeChain(new_root);
+      else{
+        gcManager.AddGcNode(root);
+      }
     }
   } else {
     // Need merge
