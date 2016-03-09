@@ -211,7 +211,6 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   PID new_pid = next_pid++;
   if (new_pid >= table.capacity()) {
     LOG_ERROR("BWTree mapping table is full, can't insert new node");
-    my_assert(false);
     return INVALID_PID;
   }
 
@@ -258,7 +257,7 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
   // get max of (begin_key, res.key)
   if (Node::bwTree.key_comp(path_state.begin_key, res->first)) {
     LOG_DEBUG("Shrink search range");
-    path_state.begin_key = res->first;
+    path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, res->first) ? res->first : path_state.begin_key;
   } else {
     LOG_DEBUG("Keep search range unchanged");
   }
@@ -301,14 +300,13 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
   LOG_DEBUG("Search at InnerInsertDelta node PID = %d", (int)Node::GetPID());
 
-  if(Node::bwTree.key_comp(target, end_k) &&
-    (Node::bwTree.key_equals(target, begin_k) || Node::bwTree.key_comp(begin_k, target))){
+  if(Node::bwTree.key_comp(target, end_k) && !Node::bwTree.key_comp(target, begin_k)){
     // begin_k <= target < end_k
     auto child = Node::bwTree.node_table.GetNode(sep_pid);
 
     path_state.node_path.push_back(child);
 
-    path_state.begin_key = begin_k;
+    path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, begin_k) ? begin_k : path_state.begin_key;
     path_state.end_key = end_k;
 
     res = child->Search(target, forwards, path_state);
@@ -330,8 +328,10 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     // else branch
     if(!Node::bwTree.key_comp(target, end_k)){
       // target >= end_k
+      LOG_DEBUG("target >= end_key");
       path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, end_k) ? end_k : path_state.begin_key;
     }else{
+      LOG_DEBUG("target < begin_key");
       // target < begin_k
       // do nothing
     }
@@ -472,6 +472,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   if (!key_cmp(target, this->begin_k) && key_cmp(target, this->end_k)) {
     // begin_k <= target < end_k, goto merged node
     auto old_bk = path_state.begin_key;
+    // TODO: look here
     path_state.begin_key = this->begin_k;
     auto node = Node::bwTree.node_table.GetNode(merge_to);
     path_state.node_path.push_back(node);
@@ -535,7 +536,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto old_ek = path_state.end_key;
   DataNode *res;
   if (Node::bwTree.key_comp(path_state.begin_key, split_key)) {
-    LOG_DEBUG("Saw unfinished SMO, ");
+    LOG_DEBUG("Saw unfinished SMO");
     // try and go
     // begin_key < split_key
     // sep: [path_state.begin_k, split_key), pid
@@ -566,7 +567,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     path_state.node_path.push_back(old_back);
   } else {
     LOG_DEBUG("Don't jump, go to next");
-    path_state.begin_key = split_key;
+    path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, split_key) ? split_key : path_state.begin_key;
     res = next->Search(target, forwards, path_state);
   }
 
@@ -584,6 +585,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   LOG_DEBUG("Search at DataSplitDelta PID = %d", (int)Node::GetPID());
 
   if (Node::bwTree.key_comp(path_state.begin_key, split_key)) {
+    LOG_DEBUG("Saw unfinished SMO");
     // try and go
     // begin_key < split_key < end_key
     // sep: [path_state.begin_k, split_key), pid
@@ -616,7 +618,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     path_state.node_path.push_back(old_back);
   } else {
     // continue the seach in the original chain
-    path_state.begin_key = split_key;
+    path_state.begin_key = Node::bwTree.key_comp(path_state.begin_key, split_key) ? split_key : path_state.begin_key;
     res = next->Search(target, forwards, path_state);
     if(res->GetPID() == this->GetPID()){
       res = this;
@@ -847,9 +849,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   // apply insert
   // The begin_k will point to the new node, end_k will point to the old node
   my_assert(result.buffer.find(begin_k) != result.buffer.end());
-  my_assert(result.buffer.find(end_k) == result.buffer.end());
+//  my_assert(result.buffer.find(end_k) == result.buffer.end());
   my_assert(Node::bwTree.key_comp(begin_k, end_k));
-
 
   result.buffer[end_k] = result.buffer[begin_k];
   result.buffer[begin_k] = sep_pid;

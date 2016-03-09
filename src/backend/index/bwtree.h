@@ -136,8 +136,8 @@ namespace peloton {
         my_assert(key_comp(begin_key, end_key));
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         bool res = node_table.UpdateNode(node, iid);
-        assert(res);
         if(!res){ LOG_DEBUG("Install separator failed"); delete iid;}
+        else { LOG_DEBUG("Install separator success"); }
         return res;
       }
       /**
