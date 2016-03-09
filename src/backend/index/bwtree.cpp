@@ -204,7 +204,12 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   // my_assert(old_node->GetPID() != INVALID_PID);
   auto res = table[old_node->pid].compare_exchange_weak(old_node, new_node);
   if(res){
-    bwTree.mem_use += new_node->GetSize();
+    if(new_node == nullptr) {
+      // todo: replace it with uninstall
+      bwTree.mem_use -= old_node->GetSize();
+    }else{
+      bwTree.mem_use += new_node->GetSize();
+    }
   }
   return res;
 }
@@ -639,15 +644,16 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 template <typename NodeType>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::Consolidate(NodeType *node, PathState &state) {
 
+
   if(node->Node::GetPID() == 0){
     this->ConsolidateRoot((StructNode *)node, state);
     return;
   }
 
-//  if( node_table.GetNode(node->Node::GetPID()) != node){
-//    // unnecessary consolidate
-//    return;
-//  }
+  if( node_table.GetNode(node->Node::GetPID()) != node){
+    // unnecessary consolidate
+    return;
+  }
 //
 //  if ( (node->Node::GetDepth() - DELTA_CHAIN_LIMIT) % 5 != 0){
 //    return;
@@ -796,7 +802,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);
       my_assert(struct_node != nullptr);
       my_assert(left_pid == new_base_from_split->GetPID());
-      InstallSeparator(struct_node, state.begin_key, split_delta->split_key, left_pid);
+      InstallSeparator(struct_node, buffer_result.key_lower_bound, split_delta->split_key, left_pid);
     }
     // TODO: GC the old node
     gcManager.AddGcNode(node);
