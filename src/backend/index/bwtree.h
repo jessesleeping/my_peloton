@@ -136,7 +136,8 @@ namespace peloton {
         my_assert(key_comp(begin_key, end_key));
         InnerInsertDelta *iid = new InnerInsertDelta(*this, begin_key, end_key, new_pid, node);
         bool res = node_table.UpdateNode(node, iid);
-        if(!res){ delete iid;}
+        assert(res);
+        if(!res){ LOG_DEBUG("Install separator failed"); delete iid;}
         return res;
       }
       /**
@@ -314,7 +315,7 @@ namespace peloton {
         size_t GetSize() const { return children.size() * (sizeof(KeyType)+ sizeof(PID)); }
         virtual void Buffer(BufferResult<StructNode> &result);
         typename StructNode::ContentType &GetContent() {return children;};
-        void SetBrothers(PID left, __attribute__((unused)) PID right) {prev = left;};
+        void SetBrothers(PID left, __attribute__((unused)) PID right) {my_assert(left != 0); prev = left;};
       private:
         PID prev;
         RangeType children;
@@ -498,7 +499,7 @@ namespace peloton {
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return nullptr;};
         typename DataNode::ContentType &GetContent() {return items;};
-        void SetBrothers(PID left, PID right) {prev = left; next = right;};
+        void SetBrothers(PID left, PID right) {my_assert(left); my_assert(right); prev = left; next = right;};
       private:
         PID prev;
         PID next;
