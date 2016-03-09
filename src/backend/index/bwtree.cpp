@@ -248,8 +248,8 @@ typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqua
   auto next = children.upper_bound(target);
   auto res = --next;
 
+  // Push child into node path
   Node *child = Node::bwTree.node_table.GetNode(res->second);
-
   path_state.node_path.push_back(child);
 
   auto old_bk = path_state.begin_key;
@@ -535,6 +535,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   auto old_ek = path_state.end_key;
   DataNode *res;
   if (Node::bwTree.key_comp(path_state.begin_key, split_key)) {
+    LOG_DEBUG("Saw unfinished SMO, ");
     // try and go
     // begin_key < split_key
     // sep: [path_state.begin_k, split_key), pid
@@ -547,6 +548,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   }
   if(Node::bwTree.key_comp(target, split_key)){
     // Here we jump to the sidelink, should pop self and push the sidelink node
+    LOG_DEBUG("Jump from split delta");
     auto sibling = Node::bwTree.node_table.GetNode(split_pid);
 
     auto old_back = path_state.node_path.back();
@@ -563,6 +565,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
     path_state.node_path.pop_back();
     path_state.node_path.push_back(old_back);
   } else {
+    LOG_DEBUG("Don't jump, go to next");
     path_state.begin_key = split_key;
     res = next->Search(target, forwards, path_state);
   }
@@ -635,14 +638,14 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     return;
   }
 
-  if( node_table.GetNode(node->Node::GetPID()) != node){
-    // unnecessary consolidate
-    return;
-  }
-
-  if ( (node->Node::GetDepth() - DELTA_CHAIN_LIMIT) % 5 != 0){
-    return;
-  }
+//  if( node_table.GetNode(node->Node::GetPID()) != node){
+//    // unnecessary consolidate
+//    return;
+//  }
+//
+//  if ( (node->Node::GetDepth() - DELTA_CHAIN_LIMIT) % 5 != 0){
+//    return;
+//  }
 
   printf("Consolidate at node PID = %d, node depth is %ld\n", (int)node->Node::GetPID(),node->GetDepth());
 
@@ -827,7 +830,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   }
 
   my_assert(result.is_scan_buffer == false);
-//  my_assert(itr != children.end());
+  my_assert(itr != children.end());
   // insert to result buffer
   result.buffer.insert(itr, children.end());
 
@@ -843,10 +846,15 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   next->Buffer(result);
   // apply insert
   // The begin_k will point to the new node, end_k will point to the old node
+  my_assert(result.buffer.find(begin_k) != result.buffer.end());
+  my_assert(result.buffer.find(end_k) == result.buffer.end());
+  my_assert(Node::bwTree.key_comp(begin_k, end_k));
+
+
   result.buffer[end_k] = result.buffer[begin_k];
   result.buffer[begin_k] = sep_pid;
-  my_assert(Node::bwTree.key_comp(begin_k, end_k));
   // THIS IS WRONG: result.buffer.emplace(begin_k, sep_pid);
+  LOG_DEBUG("Buffered %d result", (int)result.buffer.size());
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -907,6 +915,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualityChecker>::StructSplitDelta::Buffer(BufferResult<StructNode> &result) {
+  LOG_DEBUG("Buffer StructSplitDelta");
   // see if we observe an incomplete split
   if (Node::bwTree.key_comp(result.key_lower_bound, split_key)) {
     // key_range.first < split_key
@@ -919,7 +928,8 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
   }
   next->Buffer(result);
   // Set the prev pid
-  result.prev_pid = this->pid;
+  assert(result.prev_pid == this->split_pid);
+//  result.prev_pid = this->split_pid;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -1121,7 +1131,7 @@ void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
     }
   } else if (buffer_size > MAX_PAGE_SIZE) {
     // Need split
-    LOG_DEBUG("Split ROOT");
+    LOG_DEBUG("Split ROOT of size %d", (int)buffer_result.buffer.size());
     // Copy left half and right half into new nodes
     auto split_itr = buffer_result.buffer.begin();
     int i = 0;
