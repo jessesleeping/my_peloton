@@ -23,7 +23,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   key_comp(kcp),
   key_equals(keq),
   val_equals(ValueEqualityChecker()),
-  node_table(NODE_TABLE_DFT_CAPACITY) { node_num = 0;  }
+  node_table(*this, NODE_TABLE_DFT_CAPACITY), mem_use(0), gcManager(*this) { node_num = 0;  }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
 void BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Init()
@@ -187,8 +187,8 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
 //==----------------------------------
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
-BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::NodeTable(size_t capacity = NODE_TABLE_DFT_CAPACITY) :
-  table(capacity)
+BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::NodeTable::NodeTable(BWTree &bwTree_, size_t capacity = NODE_TABLE_DFT_CAPACITY) :
+ table(capacity), bwTree(bwTree_)
 {
   for (auto &item : table) {
     item.store(nullptr);
@@ -202,7 +202,11 @@ bool BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEquality
   // my_assert(new_node);
   // my_assert(old_node->GetPID() == new_node->GetPID());
   // my_assert(old_node->GetPID() != INVALID_PID);
-  return table[old_node->pid].compare_exchange_weak(old_node, new_node);
+  auto res = table[old_node->pid].compare_exchange_weak(old_node, new_node);
+  if(res){
+    bwTree.mem_use += new_node->GetSize();
+  }
+  return res;
 }
 
 template <typename KeyType, typename ValueType, class KeyComparator, typename KeyEqualityChecker, typename ValueEqualityChecker>
@@ -216,7 +220,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
 
   node->pid = new_pid;
   table[new_pid].store(node);
-
+  bwTree.mem_use += node->GetSize();
   return new_pid;
 }
 

@@ -70,12 +70,12 @@ class BWTreeIndex : public Index {
 
   // TODO: Implement this
   bool Cleanup() {
-    return true;
+    return container.gcManager.DoGc();
   }
 
   // TODO: Implement this
   size_t GetMemoryFootprint() {
-    return 0;
+    return container.mem_use.load();
   }
 
  protected:
