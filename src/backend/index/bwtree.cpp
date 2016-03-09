@@ -754,27 +754,6 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
       // create a DataSplitDelta for the old node
       split_delta = new typename NodeType::SplitDeltaType(*this, new_base, split_itr->first, left_pid);
       new_node = split_delta;
-
-      if (buffer_result.prev_pid != INVALID_PID) {
-        // update the right sibling of the left node
-        LOG_DEBUG("\tprevious left node PID = %d", (int) buffer_result.prev_pid);
-        Node *left_node = node_table.GetNode(buffer_result.prev_pid);
-        while (left_node->GetNext() != nullptr) {
-          left_node = left_node->GetNext();
-        }
-        typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
-        my_assert(left_base_node != nullptr);
-        if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
-          LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
-          // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
-          // Check if others had already consolidated and changed the right sibling of left node
-          if (ln->next == node->Node::GetPID()) {
-            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
-          }
-        } else {
-          left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
-        }
-      }
     }
     // set the old node
     new_base->SetBrothers(left_pid, buffer_result.next_pid);
@@ -797,6 +776,26 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     // install success
     LOG_DEBUG("PID %d Consolidate success", (int)new_node->Node::GetPID());
     if (new_base_from_split != nullptr) {
+      if (buffer_result.prev_pid != INVALID_PID) {
+        // update the right sibling of the left node
+        LOG_DEBUG("\tprevious left node PID = %d", (int) buffer_result.prev_pid);
+        Node *left_node = node_table.GetNode(buffer_result.prev_pid);
+        while (left_node->GetNext() != nullptr) {
+          left_node = left_node->GetNext();
+        }
+        typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
+        my_assert(left_base_node != nullptr);
+        if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
+          LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
+          // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
+          // Check if others had already consolidated and changed the right sibling of left node
+          if (ln->next == node->Node::GetPID()) {
+            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+          }
+        } else {
+          left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+        }
+      }
       // Try to install delta
       my_assert(state.node_path.size() >= 2);
       struct_node = dynamic_cast<StructNode *>(state.node_path[state.node_path.size()-2]);

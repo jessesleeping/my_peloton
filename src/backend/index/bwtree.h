@@ -67,10 +67,10 @@ namespace peloton {
       typedef std::multimap<KeyType, ValueType, KeyComparator> ResultType;
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
-      const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 128;
+      const static size_t NODE_TABLE_DFT_CAPACITY = 1<<20;
+      const static size_t DELTA_CHAIN_LIMIT = 16;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 999999;
+      const static size_t MAX_PAGE_SIZE = 256;
       const static size_t MIN_PAGE_SIZE = 0;
       class Iterator;
 
@@ -160,12 +160,10 @@ namespace peloton {
 
         Node *next = head->GetNext();
         while(next){
-          printf("free node head %p\n", head);
           delete head;
           head = next;
           next = next->GetNext();
         }
-        printf("free node head %p\n", head);
         delete head;
       }
 
