@@ -345,7 +345,7 @@ TEST(IndexTests, MultiThreadedInsertRandomTest) {
   size_t scale_factor = 100;
   LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
   locations = index->ScanAllKeys();
-  locations = index->ScanAllKeys();
+//  locations = index->ScanAllKeys();
   EXPECT_EQ(locations.size(), scale_factor * num_threads);
 
   delete tuple_schema;

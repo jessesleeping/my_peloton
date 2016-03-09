@@ -120,7 +120,7 @@ BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityCheck
   if (root->GetDepth() > BWTree::DELTA_CHAIN_LIMIT) {
     StructNode *struct_node = static_cast<StructNode *>(root);
     my_assert(struct_node != nullptr);
-    // Special consolidatation
+    // Special consolidate
     bwTree.Consolidate<StructNode>(struct_node, path_state);
   }
 
@@ -777,23 +777,27 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
     LOG_DEBUG("PID %d Consolidate success", (int)new_node->Node::GetPID());
     if (new_base_from_split != nullptr) {
       if (buffer_result.prev_pid != INVALID_PID) {
-        // update the right sibling of the left node
-        LOG_DEBUG("\tprevious left node PID = %d", (int) buffer_result.prev_pid);
-        Node *left_node = node_table.GetNode(buffer_result.prev_pid);
-        while (left_node->GetNext() != nullptr) {
-          left_node = left_node->GetNext();
-        }
-        typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
-        my_assert(left_base_node != nullptr);
-        if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
-          LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
-          // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
-          // Check if others had already consolidated and changed the right sibling of left node
-          if (ln->next == node->Node::GetPID()) {
-            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+        while (true) {
+          // update the right sibling of the left node
+          LOG_DEBUG("\tprevious left node PID = %d", (int) buffer_result.prev_pid);
+          Node *left_node = node_table.GetNode(buffer_result.prev_pid);
+          Node *head_node = left_node;
+          while (left_node->GetNext() != nullptr) {
+            left_node = left_node->GetNext();
           }
-        } else {
-          left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+          typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
+          my_assert(left_base_node != nullptr);
+          if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
+            LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
+            // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
+            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+            Node *head_node2 = node_table.GetNode(buffer_result.prev_pid);
+            if (head_node == head_node2)
+              break;
+          } else {
+            left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
+            break;
+          }
         }
       }
       // Try to install delta
@@ -1225,7 +1229,6 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 std::unique_ptr<typename BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner>
 BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::ScanFromBegin(){
   Scanner *scannerp = new Scanner(*this, key_comp);
-  my_assert(key_equals(MIN_KEY, MIN_KEY));
   auto res = std::unique_ptr<Scanner>(scannerp);
   return res;
 }
