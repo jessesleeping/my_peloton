@@ -68,9 +68,9 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<16;
-      const static size_t DELTA_CHAIN_LIMIT = 0;
+      const static size_t DELTA_CHAIN_LIMIT = 128;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 1;
+      const static size_t MAX_PAGE_SIZE = 999999;
       const static size_t MIN_PAGE_SIZE = 0;
       class Iterator;
 
@@ -167,6 +167,23 @@ namespace peloton {
         printf("free node head %p\n", head);
         delete head;
       }
+
+      static size_t GetNodeChainSize(Node *head){
+        size_t s = 0;
+        if(head == nullptr){
+          return s;
+        }
+
+        Node *next = head->GetNext();
+        while(next){
+          s += head->GetSize();
+          head = next;
+          next = next->GetNext();
+        }
+        s += head->GetSize();
+        return s;
+      }
+
       template <typename NodeType>
       void Consolidate(NodeType *node, PathState &state);
     public:
@@ -198,8 +215,9 @@ namespace peloton {
       private:
         std::vector<std::atomic<Node *>> table;
         std::atomic<PID> next_pid{0};
+        BWTree &bwTree;
       public:
-        NodeTable(size_t capacity);
+        NodeTable(BWTree &bwTree_, size_t capacity);
         NodeTable() = delete;
         ~NodeTable(){
 
@@ -257,7 +275,7 @@ namespace peloton {
          * @return The first DataNode that contains the key according to search direction
          */
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
-
+        virtual size_t GetSize() const = 0;
         virtual Node *GetNext() const = 0;
         // TODO: initialize depth in subclass
         inline void SetDepth(size_t d) {depth = d;}
@@ -279,6 +297,7 @@ namespace peloton {
         virtual ~StructNode(){}
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         virtual Node *GetNext() const = 0;
+        virtual size_t GetSize() const = 0;
         virtual void Buffer(BufferResult<StructNode> &result) = 0;
 
         // TODO: Structure node also need some kinds of .Buffer method for consolidation.
@@ -292,6 +311,7 @@ namespace peloton {
         virtual ~InnerNode() { Node::bwTree.node_num--; }
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         Node *GetNext() const {return nullptr;};
+        size_t GetSize() const { return children.size() * (sizeof(KeyType)+ sizeof(PID)); }
         virtual void Buffer(BufferResult<StructNode> &result);
         typename StructNode::ContentType &GetContent() {return children;};
         void SetBrothers(PID left, __attribute__((unused)) PID right) {prev = left;};
@@ -312,6 +332,7 @@ namespace peloton {
           this->Node::SetPID(next_->Node::GetPID());
         };
         virtual ~StructSplitDelta(){ Node::bwTree.node_num--;  };
+        size_t GetSize() const { return sizeof(KeyType) + sizeof(PID);}
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         //virtual DataNode *GetLeftMostDescendant() { return nullptr; };
@@ -333,6 +354,7 @@ namespace peloton {
           Node::SetDepth(next_->Node::GetDepth() + 1);
         };
         virtual ~InnerInsertDelta(){ Node::bwTree.node_num--; }
+        size_t GetSize() const { return 2 * sizeof(KeyType) + sizeof(PID); }
         virtual void Buffer(BufferResult<StructNode> &result);
         //virtual DataNode *GetLeftMostDescendant() {return nullptr;};
         virtual Node *GetNext() const {return next;};
@@ -355,6 +377,7 @@ namespace peloton {
             Node::SetDepth(next_->Node::GetDepth() + 1);
           };
         virtual ~StructRemoveDelta(){Node::bwTree.node_num--; }
+        size_t GetSize() const { return 0; }
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() {return next;};
@@ -371,6 +394,7 @@ namespace peloton {
           Node::SetDepth(next_->Node::GetDepth() + 1);
         };
         virtual ~DataRemoveDelta(){}
+        size_t GetSize() const { return 0; }
         virtual void Buffer(BufferResult<DataNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() {return next;};
@@ -391,6 +415,7 @@ namespace peloton {
           this->merged_content = &(inode->children);
         }
         virtual ~StructMergeDelta(){}
+        size_t GetSize() const { return 0; }
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() { return next; };
@@ -411,6 +436,7 @@ namespace peloton {
           this->merged_content = &(lnode->items);
         }
         virtual ~DataMergeDelta(){}
+        size_t GetSize() const { return 0; }
         virtual void Buffer(BufferResult<DataNode> &result);
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() { return next; };
@@ -430,6 +456,7 @@ namespace peloton {
           Node::SetDepth(next_->Node::GetDepth() + 1);
         };
         virtual ~InnerDeleteDelta(){}
+        size_t GetSize() const { return 0; }
         virtual void Buffer(BufferResult<StructNode> &result);
         virtual Node *GetNext() const {return next;};
 
@@ -452,6 +479,7 @@ namespace peloton {
       public:
         DataNode(BWTree &bwTree_) : Node(bwTree_){};
         virtual ~DataNode() {};
+        virtual size_t GetSize() const = 0;
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state) = 0;
         // TODO: Method Buffer need modification to handle all kinds of delta -- Jiexi
         virtual void Buffer(BufferResult<DataNode> &result) = 0;
@@ -465,6 +493,7 @@ namespace peloton {
       public:
         LeafNode(BWTree &bwTree_) : DataNode(bwTree_), prev(INVALID_PID), next(INVALID_PID), items(bwTree_.key_comp) {};
         virtual ~LeafNode() { Node::bwTree.node_num--;  }
+        size_t GetSize() const { return items.size() * (sizeof(KeyType) + sizeof(ValueType)); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return nullptr;};
@@ -487,6 +516,7 @@ namespace peloton {
           Node::SetDepth(next->Node::GetDepth()+1);
         };
         virtual ~InsertDelta() { Node::bwTree.node_num--; }
+        size_t GetSize() const { return sizeof(info); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return next;};
@@ -502,6 +532,7 @@ namespace peloton {
         DeleteDelta(BWTree &bwTree_, const KeyType &k, const ValueType &v, DataNode *next_): DataNode(bwTree_), next(next_),
                                                                                   info(std::make_pair(k,v)) { Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         virtual ~DeleteDelta() { Node::bwTree.node_num--;  }
+        size_t GetSize() const { return sizeof(info); }
         virtual void Buffer(BufferResult<DataNode> &result);
         DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual Node *GetNext() const {return next;};
@@ -517,6 +548,7 @@ namespace peloton {
       public:
         DataSplitDelta(BWTree &bwTree_, DataNode *next_, const KeyType &k, PID p ): DataNode(bwTree_), next(next_), split_key(k), split_pid(p) {Node::SetPID(next_->GetPID());Node::SetDepth(next->Node::GetDepth()+1);};
         virtual ~DataSplitDelta() { Node::bwTree.node_num--; }
+        size_t GetSize() const { return sizeof(KeyType) + sizeof(PID); }
         virtual DataNode *Search(KeyType target, bool forwards, PathState &path_state);
         virtual void Buffer(BufferResult<DataNode> &result);
         virtual Node *GetNext() const {return next;};
@@ -528,7 +560,7 @@ namespace peloton {
 
       class GcManager{
       public:
-        GcManager() : stop(false), epoch_table(TABLE_SIZE), end(0), global_epoch(0){
+        GcManager(BWTree &bwTree_) : bwTree(bwTree_), stop(false), epoch_table(TABLE_SIZE), end(0), global_epoch(0), gc_switch(true){
           epoch_table[global_epoch] = new EpochInfo;
           daemon_thread = std::thread(&GcManager::BackGroundInc, this);
         };
@@ -545,6 +577,36 @@ namespace peloton {
             end++;
           }
           delete epoch_table[end % TABLE_SIZE];
+        }
+
+        bool DoGc(){
+          bool expect = true, desired = false;
+          if(!gc_switch.compare_exchange_weak(expect, desired)){
+            // someone now is doing gc, so exit directly
+            return false;
+          }
+
+          // if we reach here
+          // we can do gc safely
+          while(true){
+            auto idx = end % TABLE_SIZE;
+            // only free epoch whose ref == 0
+            // also, keep the last few epochs to avoid race
+            if(epoch_table[idx]->GetRef() != 0 || end + 3 >= global_epoch){
+              break;
+            }
+            auto chain_size = epoch_table[idx]->GetSize();
+            delete epoch_table[idx];
+            bwTree.mem_use -= chain_size;
+            end++;
+          }
+
+          // enable gc switch, so let others do gc
+          expect = false;
+          desired = true;
+          auto res = gc_switch.compare_exchange_weak(expect, desired);
+          my_assert(res);
+          return true;
         }
 
         size_t EnterEpoch() {
@@ -575,19 +637,7 @@ namespace peloton {
               epoch_table[new_epoch] = new EpochInfo;
               global_epoch++;
             }
-
-            // do gc
-            while(true){
-
-              auto idx = end % TABLE_SIZE;
-              // only free epoch whose ref == 0
-              // also, keep the last few epochs to avoid race
-              if(epoch_table[idx]->GetRef() != 0 || end + 3 >= global_epoch){
-                break;
-              }
-              delete epoch_table[idx];
-              end++;
-            }
+            DoGc();
 
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
           }
@@ -618,11 +668,21 @@ namespace peloton {
           inline void AddRef() {ref++; }
           inline void DecRef() {ref--; }
           inline size_t GetRef(){ return ref.load(); }
+
+          // get size of
+          size_t GetSize() const {
+            size_t s = 0;
+            for(int i = 0; i < idx; i++){
+              s += BWTree::GetNodeChainSize(gc_nodes[i]);
+            }
+            return s;
+          }
         private:
           std::atomic<size_t> ref;
           std::vector<Node *> gc_nodes;
           std::atomic<int> idx;
         };
+        BWTree &bwTree;
         std::mutex map_lock;
         bool stop;
         std::vector<EpochInfo *>epoch_table;
@@ -630,6 +690,7 @@ namespace peloton {
         size_t global_epoch;
         std::thread daemon_thread;
         const static size_t TABLE_SIZE = 65536;
+        std::atomic<bool> gc_switch;
       };
     private:
       /** DATA FIELD **/
@@ -641,6 +702,7 @@ namespace peloton {
       KeyType MIN_KEY;
       std::atomic<int> node_num;
     public:
+      std::atomic<size_t> mem_use;
       GcManager gcManager;
     };
 

@@ -206,6 +206,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::GetTypeName(
   return "BWTree";
 }
 
+
 // Explicit template instantiation
 template class BWTreeIndex<IntsKey<1>, ItemPointer, IntsComparator<1>,
 IntsEqualityChecker<1>>;
