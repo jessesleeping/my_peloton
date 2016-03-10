@@ -134,6 +134,7 @@ template <typename KeyType, typename ValueType, class KeyComparator, typename Ke
 std::pair<KeyType, ValueType> BWTree<KeyType, ValueType, KeyComparator, KeyEqualityChecker, ValueEqualityChecker>::Scanner::GetNext()
 {
 //  LOG_DEBUG("GetNext Begin");
+
   std::pair<KeyType, ValueType> scan_res = *iterator_cur;
   // Use ++ may cause problem when we are using backward direction
   // if (++iterator_cur == iterator_end && iterator_end == buffer_result.buffer.end() && next_pid != INVALID_PID) {
@@ -788,7 +789,7 @@ void BWTree<KeyType, ValueType, KeyComparator,  KeyEqualityChecker, ValueEqualit
           typename NodeType::BaseNodeType *left_base_node = dynamic_cast<typename NodeType::BaseNodeType *>(left_node);
           my_assert(left_base_node != nullptr);
           if (dynamic_cast<LeafNode *>(left_base_node) != nullptr) {
-            LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
+            // LeafNode *ln = dynamic_cast<LeafNode *>(left_base_node);
             // LOG_DEBUG("Left node(%d)'s right pid is %d", (int) ln->Node::GetPID(), (int) ln->next);
             left_base_node->SetBrothers(left_base_node->prev, new_base_from_split->GetPID());
             Node *head_node2 = node_table.GetNode(buffer_result.prev_pid);

@@ -176,6 +176,7 @@ BWTreeIndex<KeyType, ValueType, KeyComparator, KeyEqualityChecker>::ScanAllKeys(
 
   container.gcManager.ExitEpoch(epoch);
 //  printf("%s exit epoch %ld\n", __func__, epoch);
+  container.check_double_linked_list();
   return result;
 }
 

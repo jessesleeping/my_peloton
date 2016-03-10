@@ -341,8 +341,8 @@ TEST(IndexTests, MultiThreadedInsertRandomTest) {
 
   // Parallel Test
   // High thread count will result in not enough memory
-  size_t num_threads = 10;
-  size_t scale_factor = 100;
+  size_t num_threads = 2;
+  size_t scale_factor = 1000;
   LaunchParallelTest(num_threads, InsertTestRandomKey, index.get(), pool, scale_factor);
   locations = index->ScanAllKeys();
 //  locations = index->ScanAllKeys();

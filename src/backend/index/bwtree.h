@@ -68,9 +68,9 @@ namespace peloton {
       
       const static PID INVALID_PID = std::numeric_limits<PID>::max();
       const static size_t NODE_TABLE_DFT_CAPACITY = 1<<20;
-      const static size_t DELTA_CHAIN_LIMIT = 16;
+      const static size_t DELTA_CHAIN_LIMIT = 4;
       // const static size_t SPLIT_LIMIT = 128;
-      const static size_t MAX_PAGE_SIZE = 256;
+      const static size_t MAX_PAGE_SIZE = 16;
       const static size_t MIN_PAGE_SIZE = 0;
       class Iterator;
 
@@ -703,6 +703,56 @@ namespace peloton {
     public:
       std::atomic<size_t> mem_use;
       GcManager gcManager;
+
+    public:
+    //Jx Debug
+    void check_double_linked_list() {
+      PathState path_state;
+      LOG_DEBUG("Start double linked list check");
+      // Initialize path_state
+      Node *root = node_table.GetNode(0);
+      path_state.begin_key = MIN_KEY;
+      path_state.node_path.push_back(root);
+      Node *left_most_node = root->Search(MIN_KEY, true, path_state);
+
+      while (left_most_node->GetNext() != nullptr) {
+        left_most_node = left_most_node->GetNext();
+      }
+
+      LeafNode *left_most_leaf = dynamic_cast<LeafNode*>(left_most_node);
+      assert(left_most_leaf != nullptr);
+      // left most leaf must not have prev pid
+      assert(left_most_leaf->prev == INVALID_PID);
+
+      PID cur_pid = left_most_leaf->Node::GetPID();
+//      assert(node_table.GetNode(cur_pid) == left_most_leaf);
+
+      while (cur_pid != INVALID_PID) {
+        LOG_DEBUG("Check at node PID = %d", (int)cur_pid);
+        Node *node = node_table.GetNode(cur_pid);
+        while (node->GetNext() != nullptr) {
+          node = node->GetNext();
+        }
+
+        LeafNode *ln = dynamic_cast<LeafNode*>(node);
+        assert(ln != nullptr);
+
+        if (ln->next != INVALID_PID) {
+          Node *next_node2 = node_table.GetNode(ln->next);
+          while (next_node2->GetNext() != nullptr) {
+            next_node2 = next_node2->GetNext();
+          }
+
+          LeafNode *ln2 = dynamic_cast<LeafNode*>(next_node2);
+          assert(ln2 != nullptr);
+          assert(ln2->prev == ln->Node::GetPID());
+        }
+
+        cur_pid = ln->next;
+      }
+      LOG_DEBUG("End double linked list check");
+    }
+
     };
 
   }  // End index namespace
